@@ -15,21 +15,29 @@ RigidBody
         ω0 - initial angular velocity
     inputs:
         T - external torques
-        h - internal momentums
+        Ti - internal torques
+        Hi - internal momentums
         TODO: make mass properties separate and an input, needed for İω term
     outputs:
 """
-function RigidBody(;i=1000.0*I(3), θ0 = zeros(3), ω0 = zeros(3), name)
+function RigidBody(;i=1000.0*I(3), θ0 = zeros(3), ω0 = zeros(3), Ti0 = zeros(3), Hi0 = zeros(3), name)
     @named input_T = RealInput(u_start = zeros(3), nin = 3)
+    @named input_Ti = RealInput(u_start = Ti0, nin = 3)
+    @named input_Hi = RealInput(u_start = Hi0,nin = 3)
+
     i = scalarize(only(@parameters i[1:3,1:3] = i))
     θ, ω = scalarize.(@variables(θ(t)[1:3] = θ0, ω(t)[1:3] = ω0))
 
     T = scalarize(input_T.u)
+    Ti = scalarize(input_Ti.u)
+    Hi = scalarize(input_Hi.u)
+
+    H = i*ω + Hi
     eqs = [
         D.(θ) .~ ω
-        D.(ω) .~ inv(i) * (T - ω×(i*ω))
+        D.(ω) .~ inv(i) * (T - Ti - ω×H)
     ]
-    return compose(ODESystem(eqs; name = name), input_T)
+    return compose(ODESystem(eqs; name = name), input_T,input_Ti,input_Hi)
 end
 
 """
@@ -71,50 +79,26 @@ ReactionWheel
         h - internal momentum in the reference frame
         ḣ - internal torque
 """
-function ReactionWheel(;i = 0.25 ,kt = 1,θ = I(3),ωs0 = 100*2*pi/60,name)
+function ReactionWheel(;J = 0.25 ,kt = 1,θ = I(3),ωs0 = 100*2*pi/60,name)
 #0.231 kg m^2
     unit_vec = θ*[1,0,0]
-    h0 = i*ωs0.*unit_vec
-    @named input_u = RealInput() 
+    @named input_u = RealInput(u_start = 0, nin = 1) 
     @named output_T = RealOutput(u_start = zeros(3), nout = 3)
-    @named output_h = RealOutput(u_start = zeros(3), nout = 3)
-    ωs, h = scalarize.(@variables(ωs(t) = ωs0, h(t)[1:3] = h0))
-    kt,i,θ = scalarize.(@parameters kt=kt i=i θ=θ)
+    @named output_H = RealOutput(u_start = zeros(3), nout = 3)
+    @variables ωs(t) = ωs0
+    kt,J,θ = scalarize.(@parameters kt=kt J=J θ=θ)
 
-    Tm = kt*input_u.u
-    T = Tm*unit_vec
-    h = i*ωs*unit_vec
+    current_cmd = input_u.u
+    Tm = kt*current_cmd
+    T = scalarize(Tm*unit_vec)
+    H = scalarize(J*ωs*unit_vec)
     eqs = [
-        D.(ωs) ~ Tm/i    
-        scalarize(output_T.u) .~ scalarize(T)
-        scalarize(output_h.u) .~ scalarize(h)
+        D.(ωs) ~ Tm/J    
+        scalarize(output_T.u) .~ T
+        scalarize(output_H.u) .~ H
     ]
-    return compose(ODESystem(eqs, name=name), output_T, output_h, input_u)
+    return compose(ODESystem(eqs, name=name), output_T, output_H, input_u)
 end
-"""
-Make connections to make sys
-"""
-@named rb = RigidBody()
-@named thr = Thruster()
-@named thr_command = Step(start_time = 3.0, duration = 1.0)
-@named thr_sys = ODESystem([
-        connect(rb.input_T, thr.output_T)
-        connect(thr_command.output,thr.input_u)],
-    t,
-    systems = [rb, thr, thr_command],
-)
-thr_sys_s = structural_simplify(thr_sys)
-
-@named rw_command = Step(start_time = 3.0, duration = 1.0)
-@named rw = ReactionWheel()
-@named rw_sys = ODESystem([
-        connect(rw_command.output,rw.input_u)],
-    t,
-    systems = [rw, rw_command],
-)
-
-rw_sys_s = structural_simplify(rw_sys)
-
 
 """
 Test function to verify results
@@ -125,6 +109,35 @@ function test(sys)
     sol = solve(prob)
     return sol
 end
+
+"""
+Make connections to make sys
+"""
+@named rb = RigidBody()
+
+@named thr = Thruster()
+@named thr_command = Step(start_time = 20.0, duration = 1.0)
+@named thr_sys = ODESystem([
+        connect(thr_command.output,thr.input_u)
+        ],
+    t, systems = [thr, thr_command])
+#thr_sys_s = structural_simplify(thr_sys)
+
+@named rw_command = Step(start_time = 3.0, duration = 1.0)
+@named rw = ReactionWheel()
+@named rw_sys = ODESystem([
+        connect(rw_command.output,rw.input_u)    
+        ],
+    t, systems = [rw, rw_command])
+#rw_sys_s = structural_simplify(rw_sys)
+
+@named sys = ODESystem([
+    connect(rw_sys.rw.output_H,rb.input_Hi)
+    connect(rw_sys.rw.output_T,rb.input_Ti)
+    connect(thr_sys.thr.output_T,rb.input_T)
+], t, systems = [rw_sys, thr_sys, rb])
+
+sys_s = structural_simplify(sys)
 
 """
 TBD
