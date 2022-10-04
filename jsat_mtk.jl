@@ -100,7 +100,68 @@ function ReactionWheel(;J = 0.25 ,kt = 1,θ = I(3),ωs0 = 100*2*pi/60,name)
     return compose(ODESystem(eqs, name=name), output_T, output_H, input_u)
 end
 
-"""
+mutable struct RW    
+    J::Float64
+    kt::Float64
+    a::Vector{Float64}
+    ωs0::Float64
+end
+
+function make(component::Vector{RW})
+    n = length(component)
+    @named input_u = RealInput(u_start = zeros(n), nin = n) 
+    @named output_T = RealOutput(u_start = zeros(3), nout = 3)
+    @named output_H = RealOutput(u_start = zeros(3), nout = 3)
+    @variables ωs(t)[1:n] = getfield.(component,:ωs0)
+    kt,J = scalarize.(@parameters kt[1:n]=getfield.(component,:kt) J[1:n]=getfield.(component,:J))
+    
+    a_val = reduce(hcat,getfield.(component,:a))
+    for i in 1:n a_val[:,i] = normalize(a_val[:,i]) end
+    a = scalarize(only(@parameters a[1:3,1:n] = a_val))   
+
+    T_tmp = []
+    H_tmp = []
+    Tm = []
+    #current_cmd = input_u.u
+    for i in 1:n
+        #print(kt)
+        #print(current_cmd)
+        Tm = kt[i]*input_u.u[i]
+        push!(T_tmp,Tm*a[:,i])
+        push!(H_tmp,J[i]*ωs[i]*a[:,i])
+    end
+    print(size(T_tmp))
+    if n == 1
+        T = scalarize(T_tmp)
+        H = scalarize(H_tmp)
+    else
+        T = scalarize(sum(T_tmp))
+        H = scalarize(sum(H_tmp))
+    end
+
+    eqs = [
+        D.(ωs) .~ Tm./J    
+        scalarize(output_T.u) .~ T
+        scalarize(output_H.u) .~ H
+    ]
+    return compose(ODESystem(eqs, name=:ReactionWheels), output_T, output_H, input_u)
+end
+
+function make(component::RW)
+    make([component])
+end
+
+function RwCommand(times,durations,values;name)
+    n = 3
+    @named output_u = RealOutput(u_start = zeros(n), nout = n)
+    times,durations,values = @parameters times[1:n] = times durations[1:n] = durations values[1:n] = values
+    eqs = []
+    for i in 1:n        
+        push!(eqs,ifelse((t > times[i]) & (t < (times[i] + durations[i])), [output_u.u[i] ~ values[i]], [output_u.u[i] ~ 0]))                
+    end
+    return compose(ODESystem(eqs, name=name), output_u)
+end
+    """
 Test function to verify results
 """
 
