@@ -66,7 +66,6 @@ end
 ReactionWheel   
     states:
         ωs - wheel speed
-
     parameters:
         kt - motor torque constant
         r - location to wheel cg
@@ -74,40 +73,20 @@ ReactionWheel
         i - wheel inertia
         TODO: Wheel equations, what parameters do I need?
     inputs:
-        input_u - current
+        input_u - current command
     outputs:
-        h - internal momentum in the reference frame
-        ḣ - internal torque
+        H - internal momentum in the reference frame
+        T - internal torque in the reference frame
 """
-function ReactionWheel(;J = 0.25 ,kt = 1,θ = I(3),ωs0 = 100*2*pi/60,name)
-#0.231 kg m^2
-    unit_vec = θ*[1,0,0]
-    @named input_u = RealInput(u_start = 0, nin = 1) 
-    @named output_T = RealOutput(u_start = zeros(3), nout = 3)
-    @named output_H = RealOutput(u_start = zeros(3), nout = 3)
-    @variables ωs(t) = ωs0
-    kt,J,θ = scalarize.(@parameters kt=kt J=J θ=θ)
 
-    current_cmd = input_u.u
-    Tm = kt*current_cmd
-    T = scalarize(Tm*unit_vec)
-    H = scalarize(J*ωs*unit_vec)
-    eqs = [
-        D.(ωs) ~ Tm/J    
-        scalarize(output_T.u) .~ T
-        scalarize(output_H.u) .~ H
-    ]
-    return compose(ODESystem(eqs, name=name), output_T, output_H, input_u)
-end
-
-mutable struct RW    
+mutable struct ReactionWheel    
     J::Float64
     kt::Float64
     a::Vector{Float64}
     ωs0::Float64
 end
 
-function make(component::Vector{RW})
+function make(component::Vector{ReactionWheel})
     n = length(component)
     @named input_u = RealInput(u_start = zeros(n), nin = n) 
     @named output_T = RealOutput(u_start = zeros(3), nout = 3)
@@ -122,15 +101,11 @@ function make(component::Vector{RW})
     T_tmp = []
     H_tmp = []
     Tm = []
-    #current_cmd = input_u.u
     for i in 1:n
-        #print(kt)
-        #print(current_cmd)
         Tm = kt[i]*input_u.u[i]
         push!(T_tmp,Tm*a[:,i])
         push!(H_tmp,J[i]*ωs[i]*a[:,i])
     end
-    print(size(T_tmp))
     if n == 1
         T = scalarize(T_tmp)
         H = scalarize(H_tmp)
@@ -147,21 +122,26 @@ function make(component::Vector{RW})
     return compose(ODESystem(eqs, name=:ReactionWheels), output_T, output_H, input_u)
 end
 
-function make(component::RW)
+function make(component::ReactionWheel)
     make([component])
 end
 
-function RwCommand(times,durations,values;name)
+function nStep(times,durations,values;name)
     n = 3
     @named output_u = RealOutput(u_start = zeros(n), nout = n)
-    times,durations,values = @parameters times[1:n] = times durations[1:n] = durations values[1:n] = values
-    eqs = []
+    @parameters begin
+        times[1:n] = times
+        durations[1:n] = durations
+        values[1:n] = values
+    end   
+    equation = []
     for i in 1:n        
-        push!(eqs,ifelse((t > times[i]) & (t < (times[i] + durations[i])), [output_u.u[i] ~ values[i]], [output_u.u[i] ~ 0]))                
+        push!(equation,ifelse((t > times[i]) & (t < (times[i] + durations[i])), values[i], 0))                
     end
-    return compose(ODESystem(eqs, name=name), output_u)
+    eqs = scalarize(output_u.u .~ equation)
+    return compose(ODESystem(eqs, name=name), [output_u])
 end
-    """
+"""
 Test function to verify results
 """
 
@@ -171,9 +151,24 @@ function test(sys)
     return sol
 end
 
+r1 = ReactionWheel(0.25, 1, [ 1, 0, 0], 20)
+r2 = ReactionWheel(0.35, 1.1, [ 0, 1, 0], 30)
+r3 = ReactionWheel(0.45, 1.2, [ 0, 0, 1], 40)
+
+rw = make([r1,r2,r3])
+
+@named rw_command = nStep([1.,4.,7.], [1.,1.,1.], [1.,1.,1.])
+
+@named sys = ODESystem([
+    connect(rw.input_u, rw_command.output_u)
+    ],t,systems = [rw,rw_command])
+
+sys_s = structural_simplify(sys)
+
 """
 Make connections to make sys
 """
+#=
 @named rb = RigidBody()
 
 @named thr = Thruster()
@@ -182,7 +177,7 @@ Make connections to make sys
         connect(thr_command.output,thr.input_u)
         ],
     t, systems = [thr, thr_command])
-#thr_sys_s = structural_simplify(thr_sys)
+thr_sys_s = structural_simplify(thr_sys)
 
 @named rw_command = Step(start_time = 3.0, duration = 1.0)
 @named rw = ReactionWheel()
@@ -190,7 +185,7 @@ Make connections to make sys
         connect(rw_command.output,rw.input_u)    
         ],
     t, systems = [rw, rw_command])
-#rw_sys_s = structural_simplify(rw_sys)
+rw_sys_s = structural_simplify(rw_sys)
 
 @named sys = ODESystem([
     connect(rw_sys.rw.output_H,rb.input_Hi)
@@ -199,7 +194,7 @@ Make connections to make sys
 ], t, systems = [rw_sys, thr_sys, rb])
 
 sys_s = structural_simplify(sys)
-
+=#
 """
 TBD
 """
