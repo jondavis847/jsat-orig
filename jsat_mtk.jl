@@ -113,11 +113,11 @@ function make(component::Vector{ReactionWheel})
         T = scalarize(sum(T_tmp))
         H = scalarize(sum(H_tmp))
     end
-
+    print(T)
     eqs = [
         D.(ωs) .~ Tm./J    
-        scalarize(output_T.u) .~ T
-        scalarize(output_H.u) .~ H
+        0 .~ output_T.u - T
+        0 .~ output_H.u - H
     ]
     return compose(ODESystem(eqs, name=:ReactionWheels), output_T, output_H, input_u)
 end
@@ -134,19 +134,27 @@ function nStep(times,durations,values;name)
         durations[1:n] = durations
         values[1:n] = values
     end   
-    equation = []
+    eqs = []
     for i in 1:n        
-        push!(equation,ifelse((t > times[i]) & (t < (times[i] + durations[i])), values[i], 0))                
+        push!(eqs, 0. ~ output_u.u[i] - ifelse((t > times[i]) & (t < (times[i] + durations[i])), values[i], 0))                
     end
-    eqs = scalarize(output_u.u .~ equation)
-    return compose(ODESystem(eqs, name=name), [output_u])
+    return compose(ODESystem(eqs, t, name=name), [output_u])
 end
 """
 Test function to verify results
 """
 
+function Step3(;name,times,durations = [1.,1.,1.])
+    @named s1 = Step(start_time=times[1], duration=durations[1],smooth = true)
+    @named s2 = Step(start_time=times[2], duration=durations[2],smooth = true)
+    @named s3 = Step(start_time=times[3], duration=durations[3],smooth = true)
+    @named output = RealOutput(nout = 3)
+    eqs = scalarize(output.u .~ [s1.output.u, s2.output.u, s3.output.u])
+    return compose(ODESystem(eqs, name=name),s1,s2,s3,output)  
+end
+
 function test(sys)
-    prob = ODEProblem(sys, Pair[], (0.0,10.0))
+    prob = ODEProblem(sys, Pair[], (0.0,10.0), check_length = false)
     sol = solve(prob)
     return sol
 end
@@ -159,9 +167,7 @@ rw = make([r1,r2,r3])
 
 @named rw_command = nStep([1.,4.,7.], [1.,1.,1.], [1.,1.,1.])
 
-@named sys = ODESystem([
-    connect(rw.input_u, rw_command.output_u)
-    ],t,systems = [rw,rw_command])
+@named sys = ODESystem([connect(rw.input_u, rw_command.output_u)],t,systems = [rw,rw_command])
 
 sys_s = structural_simplify(sys)
 
