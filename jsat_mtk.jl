@@ -20,7 +20,34 @@ RigidBody
         TODO: make mass properties separate and an input, needed for İω term
     outputs:
 """
-function RigidBody(;i=1000.0*I(3), θ0 = zeros(3), ω0 = zeros(3), Ti0 = zeros(3), Hi0 = zeros(3), name)
+
+mutable struct RigidBody
+    I::Matrix{Float64}
+    θ0::Vector{Float64}
+    ω0::Vector{Float64}
+    #Ti0 = zeros(3)
+    #Hi0 = zeros(3)
+end
+
+function make(component::RigidBody)
+    @named input_Te = RealInput(nin = 3)
+    @named input_Ti = RealInput(nin = 3)
+    @named input_Hi = RealInput(nin = 3)
+    i = scalarize(only(@parameters i[1:3,1:3] = component.I))
+    θ, ω = scalarize.(@variables(θ(t)[1:3] = component.θ0, ω(t)[1:3] = component.ω0))
+
+    Te = scalarize(input_Te.u)
+    Ti = scalarize(input_Ti.u)
+    Hi = scalarize(input_Hi.u)
+
+    H = i*ω + Hi
+    eqs = [
+        D.(θ) .~ ω
+        D.(ω) .~ inv(i) * (Te - Ti - ω×H)
+    ]
+    return compose(ODESystem(eqs; name = :RigidBodys), input_Te,input_Ti,input_Hi)
+end
+#=function RigidBody(;i=1000.0*I(3), θ0 = zeros(3), ω0 = zeros(3), Ti0 = zeros(3), Hi0 = zeros(3), name)
     @named input_T = RealInput(u_start = zeros(3), nin = 3)
     @named input_Ti = RealInput(u_start = Ti0, nin = 3)
     @named input_Hi = RealInput(u_start = Hi0,nin = 3)
@@ -39,7 +66,7 @@ function RigidBody(;i=1000.0*I(3), θ0 = zeros(3), ω0 = zeros(3), Ti0 = zeros(3
     ]
     return compose(ODESystem(eqs; name = name), input_T,input_Ti,input_Hi)
 end
-
+=#
 """
 Thruster 
     states:
@@ -52,10 +79,15 @@ Thruster
     outputs:
         T - resultant external torque in reference frame
 """
-function Thruster(F=100.0, R=[0.0,5.0,0.0], θ=1.0*I(3);name) 
-    @named output_T = RealOutput(u_start = zeros(3), nout = 3)  
-    @named input_u = RealInput() 
-    F, R, θ = scalarize.(@parameters F=F R[1:3]=R θ[1:3,1:3] = θ)
+mutable struct Thruster
+    F::Float64
+    R::Vector{Float64}
+    θ::Matrix{Float64}
+end
+function make(component::Thruster) 
+    @named output_T = RealOutput(nout = 3)  
+    @named input_u = RealInput(nin = 1) 
+    F, R, θ = scalarize.(@parameters F=component.F R[1:3]=component.R θ[1:3,1:3] = component.θ)
 
     F̄ = [F, 0, 0]
     eqs = scalarize(output_T.u) .~ scalarize(input_u.u * (R × (θ*F̄)))
@@ -158,6 +190,13 @@ function nStep(;name,times,durations,values)
     return compose(ODESystem(eqs, t, name=name), [output_u])
 end
 
+function controller(;name,samplerate)
+    @named input_ω = RealInput(nin = 3) 
+    @named output_u = RealOutput(nout = 3)
+    U = DiscreteUpdate(t; dt = samplerate)
+    equations = [U(output.u) .~ -input_ω.u]
+end
+
 #This was made to be differentiable but looks like nstep works, is simpler, and more flexible
 function Step3(;name,times,durations = [1.,1.,1.])
     @named s1 = Step(start_time=times[1], duration=durations[1],smooth = true)
@@ -173,8 +212,8 @@ Test function to verify results
 """
 
 function test(sys)
-    prob = ODEProblem(sys, Pair[], (0.0,10.0), check_length = false)
-    sol = solve(prob)
+    prob = ODAEProblem(sys, Pair[], (0.0,10.0), check_length = false)
+    sol = solve(prob,Rodas4())
     return sol
 end
 
@@ -184,7 +223,7 @@ Example systems
 """
 
 #Make the Rigid Body
-@named rb = RigidBody()
+rb = make(RigidBody(1000*I(3),zeros(3),zeros(3)))
 
 #Make the Reaction Wheels
 r1 = ReactionWheel(0.25, 1, [ 1, 0, 0], 20)
