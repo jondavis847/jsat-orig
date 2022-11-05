@@ -1,4 +1,4 @@
-using ModelingToolkit, ModelingToolkitStandardLibrary.Blocks, DifferentialEquations, LinearAlgebra, Rotations, Plots
+using ModelingToolkit, ModelingToolkitStandardLibrary.Blocks, DifferentialEquations, LinearAlgebra, Rotations, Plots, IfElse
 using Symbolics: scalarize
 
 @variables t
@@ -118,101 +118,69 @@ mutable struct ReactionWheel
     ωs0::Float64
 end
 
-function make(component::Vector{ReactionWheel})
+function make(component::Vector{ReactionWheel})    
     n = length(component)
-    @named input_u = RealInput(u_start = zeros(n), nin = n) 
-    @named output_T = RealOutput(u_start = zeros(3), nout = 3)
-    @named output_H = RealOutput(u_start = zeros(3), nout = 3)
-    @variables ωs(t)[1:n] = getfield.(component,:ωs0)
-    kt,J = scalarize.(@parameters kt[1:n]=getfield.(component,:kt) J[1:n]=getfield.(component,:J))
+    x = begin
+        @variables (u(t))[1:n] = zeros(n) [input = true] #input current command
+        @variables (T(t))[1:3] = zeros(3) [output = true] #output internal reaction torque 
+        @variables (H(t))[1:3] = zeros(3) [output = true] #output internal momentum
+        @variables ωs(t)[1:n] = getfield.(component,:ωs0) #array of wheel speeds
+    end
+
+    p = begin 
+        @parameters kt[1:n]=getfield.(component,:kt) #current to torque motor gain
+        @parameters J[1:n]=getfield.(component,:J) #wheel inertia
+    end
     
     a_val = reduce(hcat,getfield.(component,:a))
     for i in 1:n a_val[:,i] = normalize(a_val[:,i]) end
     a = scalarize(only(@parameters a[1:3,1:n] = a_val))   
 
-    T_tmp = []
-    H_tmp = []
-    Tm = []
-    for i in 1:n
-        push!(Tm,kt[i]*input_u.u[i])
-        push!(T_tmp,Tm[i]*a[:,i])
-        push!(H_tmp,J[i]*ωs[i]*a[:,i])
-    end
-    T = sum(T_tmp)
-    H = sum(H_tmp)
+    Tm = [kt[i]*u[i] for i in 1:n]    
+
     eqs = scalarize([
         D.(ωs) .~ Tm./J    
-        output_T.u .~ T
-        output_H.u .~ H
+        T .~ sum([Tm[i]*a[:,i] for i in 1:n])
+        H .~ sum([J[i]*ωs[i]*a[:,i] for i in 1:n])
     ])
-    return compose(ODESystem(eqs, name=:rw), output_T, output_H, input_u)
+    return ODESystem(eqs,t,name=:rw)
 end
 
-function make(component::ReactionWheel)
-    @named input_u = RealInput(u_start = 0., nin = 1) 
-    @named output_T = RealOutput(u_start = zeros(3), nout = 3)
-    @named output_H = RealOutput(u_start = zeros(3), nout = 3)
-    @variables ωs(t) = component.ωs0
-    @parameters begin
-        kt = component.kt
-        J = component.J
-        a[1:3] = component.a
-    end    
-    Tm = kt*input_u.u
-    T = Tm*a
-    H = J*ωs*a
-    
-    eqs = [
-        D.(ωs) ~ Tm/J    
-        scalarize(output_T.u .~ T)
-        scalarize(output_H.u .~ H)
-    ]
-    return compose(ODESystem(eqs, name=:ReactionWheels), output_T, output_H, input_u)
+function make(component::ReactionWheel)    
+    return make([component])
 end
+
 
 """
 Step function for unit testing
     n - number of step functions out put as an array (single output)
 """
-
-function nStep(;name,times,durations,values)
-    n = length(times)
-    @named output_u = RealOutput(u_start = zeros(n), nout = n)
-    @parameters begin
+function step(;name,times,durations,values)
+    n = length(times)    
+    x = @variables (out(t))[1:n]=zeros(n) [output = true, irreducible = true]        
+    p = @parameters begin
         times[1:n] = times
         durations[1:n] = durations
         values[1:n] = values
-    end   
-    eqs = []
-    for i in 1:n        
-        push!(eqs, 0. ~ output_u.u[i] - ifelse((t > times[i]) & (t < (times[i] + durations[i])), values[i], 0))                
-    end
-    return compose(ODESystem(eqs, t, name=name), [output_u])
+    end       
+    
+    eqs = [[0 ~ out[i] - IfElse.ifelse(((times[i] < t) & ((times[i] + durations[i]) > t)), values[i], 0) for i in 1:n]...]    
+    return ODESystem(eqs,t,name=name)
 end
 
 function controller(;name,samplerate)
     @named input_ω = RealInput(nin = 3) 
     @named output_u = RealOutput(nout = 3)
     U = DiscreteUpdate(t; dt = samplerate)
-    equations = [U(output.u) .~ -input_ω.u]
-end
-
-#This was made to be differentiable but looks like nstep works, is simpler, and more flexible
-function Step3(;name,times,durations = [1.,1.,1.])
-    @named s1 = Step(start_time=times[1], duration=durations[1],smooth = true)
-    @named s2 = Step(start_time=times[2], duration=durations[2],smooth = true)
-    @named s3 = Step(start_time=times[3], duration=durations[3],smooth = true)
-    @named output = RealOutput(nout = 3)
-    eqs = scalarize(output.u .~ [s1.output.u, s2.output.u, s3.output.u])
-    return compose(ODESystem(eqs, name=name),s1,s2,s3,output)  
+    eqs = scalarize(U.(output_u.u) .~ -input_ω.u)
+    return compose(ODESystem(eqs,t,name=name),input_ω,output_u)
 end
 
 """
 Test function to verify results
 """
-
 function test(sys)
-    prob = ODAEProblem(sys, Pair[], (0.0,10.0), check_length = false)
+    prob = ODAEProblem(sys, [], (0.0,10.0), saveat = 0:.1:10)
     sol = solve(prob,Rodas4())
     return sol
 end
