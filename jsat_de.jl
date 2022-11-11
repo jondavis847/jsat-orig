@@ -5,20 +5,13 @@ kp = 1000
 kd = 1000
 θr = zeros(3)
 ωr = zeros(3)
+
 function eom!(dx,x,p,t)
     θ = @view(x[:θ])
     ω = @view(x[:ω])        
     dx = rotation(dx,x,p.T)             
 end
-function fsw!(integrator)
-    integrator.p.T = controller(integrator.u)
-end
-function controller(x)
-    θ = @view(x[:θ])
-    ω = @view(x[:ω])  
-    T = kp*(θr-θ) + kd*(ωr-ω)    
-    return T
-end
+
 function rotation(dx,x,T)
     θ = @view(x[:θ])
     ω = @view(x[:ω])
@@ -28,6 +21,19 @@ function rotation(dx,x,T)
     dx.ω = inv(J)*(T - ω×H) 
     return dx
 end
+
+function fsw!(integrator)
+    integrator.p.T = controller(integrator.u)
+end
+
+function controller(x)
+    θ = @view(x[:θ])
+    ω = @view(x[:ω])  
+    T = kp*(θr-θ) + kd*(ωr-ω)    
+    return T
+end
+
+
 x0 = ComponentArray(
     θ = zeros(3),
     ω = [pi/4,0,0],    
@@ -36,5 +42,10 @@ x0 = ComponentArray(
 p = ComponentArray(T=zeros(3))
 prob = ODEProblem(eom!,x0,(0,80),p,)
 
-cb = PeriodicCallback(fsw!,1)
-sol = solve(prob,Tsit5(),callback = cb)
+saved_values = SavedValues(Float64,typeof(p))
+save_func = (u,t,integrator) -> copy(integrator.p) # need to copy or all saved vals will be the end vals
+
+save = SavingCallback(save_func,saved_values)
+
+fsw = PeriodicCallback(fsw!,.1)
+sol = solve(prob,Tsit5(),callback = CallbackSet(fsw,save))
