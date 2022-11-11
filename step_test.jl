@@ -4,7 +4,7 @@ using ModelingToolkit, DifferentialEquations, Plots, IfElse
 function step(time;name)    
     x = @variables u(t)=0 [output = true,irreducible = true]    
     p = @parameters time=time height=0        
-    eq = [0 ~ u - height + time]
+    eq = [0 ~ u - height]
     ODESystem(eq, t; name=name, continuous_events = [(t - time ~ 0) => (height ~ 1)])
 end
 
@@ -17,7 +17,7 @@ function steps(times;name)
         
     cond = [t - times[i] ~ 0 for i in 1:n]
     affect = [heights[i] ~ 1 for i in 1:n]
-    ODESystem(eq,t; name=name, continuous_events = cond => affect)
+    ODESystem(eq,t,[x...;],[p...;]; name=name, continuous_events = cond => affect)
 end
 
 function step_ifelse(time;name)

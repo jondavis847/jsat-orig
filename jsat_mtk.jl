@@ -149,17 +149,16 @@ function step(;name,times,durations,values)
 end
 
 function controller(;name,samplerate,kd=1,kp=1)
-    @variables θ(t)[1:3] [input = true]
-    @variables ω(t)[1:3]=zeros(3) [input = true]        
-    @variables u(t)[1:3]=zeros(3) [output = true]
-
-    @parameters kd=kd kp=kp
+    #x = @variables θ(t)[1:3] [input = true] ω(t)[1:3]=zeros(3) [input = true] u(t)[1:3]=zeros(3) [output = true]        
+    x = @variables ω(t)[1:3]=zeros(3) [input = true] u(t)[1:3]=zeros(3) [output = true]        
+    p = @parameters kd=kd kp=kp
     
     ω_ref = zeros(3)
     θ_ref = zeros(3)
     U = DiscreteUpdate(t; dt = samplerate)
-    eqs = scalarize(U.(u) .~ kd*(ω_ref-ω) + kp*(θ_ref - θ))
-    return ODESystem(eqs,t,name=name)
+    eqs = U.(u) ~ kd*(ω_ref-ω)# + kp*(θ_ref - θ)
+    
+    return ODESystem(scalarize(eqs),t,[x...;],p,name=name)
 end
 
 """
