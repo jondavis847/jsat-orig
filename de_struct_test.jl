@@ -1,9 +1,10 @@
 using ComponentArrays, DifferentialEquations, LinearAlgebra
-mutable struct RigidBody
+struct RigidBody
     J::Matrix{Float64}
     θ::Vector{Float64}
     ω::Vector{Float64}
 end
+
     
 θr = zeros(3)
 ωr = zeros(3)
