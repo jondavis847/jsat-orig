@@ -22,7 +22,7 @@ RigidBody
 """
 
 mutable struct RigidBody
-    I::Matrix{Float64}
+    J::Matrix{Float64}
     θ0::Vector{Float64}
     ω0::Vector{Float64}    
 end
@@ -44,6 +44,22 @@ function make(component::RigidBody)
     ]    
     return ODESystem(eqs,t,name=:rb)
 end
+
+function makeSimple(component::RigidBody)
+    @variables T(t)[1:3] = zeros(3) [input = true]
+    @variables θ(t)[1:3] = component.θ0
+    @variables ω(t)[1:3] = component.ω0 [output = true]
+    T,θ,ω = scalarize.([T,θ,ω])            
+    J = scalarize(only(@parameters J[1:3,1:3] = component.J))
+
+    H = J*ω
+    eqs = [
+        D.(θ) .~ ω
+        D.(ω) .~ inv(J) * (T-ω×H)        
+    ]    
+    return ODESystem(eqs,t,name=:rb)
+end
+    
 """
 Thruster 
     states:
@@ -156,7 +172,7 @@ function controller(;name,samplerate,kd=1,kp=1)
     ω_ref = zeros(3)
     θ_ref = zeros(3)
     U = DiscreteUpdate(t; dt = samplerate)
-    eqs = U.(u) ~ kd*(ω_ref-ω)# + kp*(θ_ref - θ)
+    eqs = zeros(3).~ U.(u) - kd*(ω_ref-ω)# + kp*(θ_ref - θ)
     
     return ODESystem(scalarize(eqs),t,[x...;],p,name=name)
 end
