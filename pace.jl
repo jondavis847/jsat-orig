@@ -19,7 +19,7 @@ p_controller = ComponentArray(
     kp = [0.2853, 0.0288, 0.2853],
     kd = [0.7478, 0.2376, 0.7478],  
     refrate = -[0, 0.0011, 0]  
-)
+  )
 
 p_rw1 = ComponentArray(    
     km = 0.077, #motor constant
@@ -60,6 +60,7 @@ p = ComponentArray(
     body = p_body,
     controller = p_controller,    
     rw = p_rw,
+    gravity = p_gravity,
 )
 
 
@@ -130,4 +131,4 @@ x0 = ComponentArray(
 """ ODE """
 
 prob = ODEProblem(model!,x0,(0,100),p)
-sol = solve(prob,Tsit5(),callback=CallbackSet(bodyRotationCallback,fsw,rw))
+sol = solve(prob,Tsit5(),callback=CallbackSet(gravity,bodyRotationCallback,bodyTranslationCallback,fsw,rw))

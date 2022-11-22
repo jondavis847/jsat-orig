@@ -15,62 +15,66 @@ function model!(dx,x,p,t)
     eom!(dx,x,p,t)    
 end
 
-function gravity!(dx,x,p,t)
-    @unpack μ,R,J2,J3,J4,J5,J6 = p.gravity
-    @unpack x,y,z,r = x.body.position
-    aj[1] = -(3/2)*J2*(μ/r^2)*(R/r)^2*[
+function eom!(dx,x,p,t)
+    bodyTranslation!(dx,x,p,t)
+    bodyRotation!(dx,x,p,t)
+end
+
+
+function gravity!(integrator)
+    @unpack μ,R,J2,J3,J4,J5,J6 = integrator.p.gravity
+    x,y,z = @views integrator.u.body[:r]
+    r = @views integrator.u.body[:rmag]
+
+    aj2 = -(3/2)*J2*(μ/r^2)*(R/r)^2*[
         (1-5*(z/r)^2)*x/r
         (1-5*(z/r)^2)*y/r
         (3-5*(z/r)^2)*z/r
         ]
 
-    aj[2] = -(1/2)*J3*(μ/r^2)*(R/r)^3*[
+    aj3 = -(1/2)*J3*(μ/r^2)*(R/r)^3*[
         5*(7*(z/r)^3 - 3*(z/r))*x/r
         5*(7*(z/r)^3 - 3*(z/r))*y/r
         3*(10*(z/r)^2 - 35/3*(z/r)^4 - 1)
         ]
 
-    aj[3] = -(5/8)*J4*(μ/r^2)*(R/r)^4*[
+    aj4 = -(5/8)*J4*(μ/r^2)*(R/r)^4*[
         (3-42*(z/r)^2 + 63*(z/r)^4)*x/r
         (3-42*(z/r)^2 + 63*(z/r)^4)*y/r
         -(15-70*(z/r)^2 + 63*(z/r)^4)*z/r
         ]
 
-    aj[4] = -(1/8)*J5*(μ/r^2)*(R/r)^5*[
+    aj5 = -(1/8)*J5*(μ/r^2)*(R/r)^5*[
         3*(35*(z/r)-210*(z/r)^3 + 231*(z/r)^5)*x/r
         3*(35*(z/r)-210*(z/r)^3 + 231*(z/r)^5)*y/r
         (15-315*(z/r)^2 + 945*(z/r)^4 - 693*(z/r)^6)
         ]
 
-    aj[5] = (1/16)*J6*(μ/r^2)*(R/r)^6*[
+    aj6 = (1/16)*J6*(μ/r^2)*(R/r)^6*[
         (35-945*(z/r)^2 + 3465*(z/r)^4 - 3003*(z/r)^6)*x/r
         (35-945*(z/r)^2 + 3465*(z/r)^4 - 3003*(z/r)^6)*y/r
         (2205*(z/r)^2 - 4851*(z/r)^4 + 3003*(z/r)^6 - 315)*z/r
         ]
 
-    x.gravity.a = sum(aj)
+    integrator.u.gravity.a = aj2+aj3+aj4+aj5+aj6
 end
 
 gravity = PeriodicCallback(gravity!,lograte)
 
+
 """ Body Translation """
 
 function bodyTranslationCallback!(integrator)
-    x.body.rmag = norm(x.body.r)
+    integrator.u.body.rmag = norm(integrator.u.body.r)
 end
+bodyTranslationCallback = PeriodicCallback(bodyTranslationCallback!,lograte)
 
 function bodyTranslation!(dx,x,p,t)
-    @unpack r = dx.body
-    @unpack rmag = dx.body
-
     dx.body.r = x.body.v
-    dx.body.v = -p.gravity.μ/rmag*r + x.gravity.a 
+    dx.body.v = -p.gravity.μ/norm(x.body.r)*x.body.r# + x.gravity.a 
 end
 
 """ Body Rotation """
-function eom!(dx,x,p,t)
-    bodyRotation!(dx,x,p,t)
-end
 
 function bodyRotationCallback!(integrator)        
     integrator.u.body.H = integrator.p.body.J*integrator.u.body.ω + integrator.u.body.Hi     
