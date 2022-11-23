@@ -130,5 +130,5 @@ x0 = ComponentArray(
 
 """ ODE """
 
-prob = ODEProblem(model!,x0,(0,100),p)
-sol = solve(prob,Tsit5(),callback=CallbackSet(gravity,bodyRotationCallback,bodyTranslationCallback,fsw,rw))
+prob = ODEProblem(model!,x0,(0,10000),p)
+sol = solve(prob,Tsit5(),callback=CallbackSet(gravity,bodyRotationCallback,fsw,rw))

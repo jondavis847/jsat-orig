@@ -64,14 +64,10 @@ gravity = PeriodicCallback(gravity!,lograte)
 
 """ Body Translation """
 
-function bodyTranslationCallback!(integrator)
-    integrator.u.body.rmag = norm(integrator.u.body.r)
-end
-bodyTranslationCallback = PeriodicCallback(bodyTranslationCallback!,lograte)
 
 function bodyTranslation!(dx,x,p,t)
     dx.body.r = x.body.v
-    dx.body.v = -p.gravity.μ/norm(x.body.r)*x.body.r# + x.gravity.a 
+    dx.body.v = -p.gravity.μ/(norm(x.body.r)^3)*x.body.r + x.gravity.a 
 end
 
 """ Body Rotation """
