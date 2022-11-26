@@ -82,8 +82,8 @@ rmag0 = norm(r0)
 v0 = [2.56786681792351e3, 1.79527532306182e3, -6.82715713742553e3]
 
 x_body = ComponentArray(
-    θ = fakeNadir(r0,v0),
-    q = [0,0,0,1],
+    #θ = fakeNadir(r0,v0),
+    q = fakeNadir(r0,v0),
     ω = [0, -0.0011, 0]; # [rad/sec],
     H = zeros(3),
     Hi = zeros(3),
@@ -96,7 +96,8 @@ x_body = ComponentArray(
     
 x_controller = ComponentArray(
     u = zeros(3),
-    θr = fakeNadir(r0,v0),
+    #θr = fakeNadir(r0,v0),
+    qr = fakeNadir(r0,v0),
     ωr =[0, -0.0011, 0], 
     attitudeError = zeros(3),
     rateError = zeros(3),
