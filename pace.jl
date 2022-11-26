@@ -1,3 +1,5 @@
+using LinearAlgebra
+
 includet("jsat.jl")
 
 """Define Parameters"""
@@ -15,38 +17,48 @@ p_body = ComponentArray(
     cg = cg,    
 )
 
+a = [
+        [0.76604,0.64279,0],
+        [0,0.64279,0.76604],
+        [-0.76604,0.64279,0],
+        [0,0.64279,-0.76604]
+        ]
+
+    b_to_rw = [a'...;]
+
 p_controller = ComponentArray(
-    kp = [0.2853, 0.0288, 0.2853],
-    kd = [0.7478, 0.2376, 0.7478],  
-    refrate = -[0, 0.0011, 0]  
+    kp = 5000*[0.2853, 0.0288, 0.2853],
+    kd = 10000*[0.7478, 0.2376, 0.7478],  
+    refrate = -[0, 0.0011, 0]  ,
+    b_to_rw = b_to_rw,
   )
 
 p_rw1 = ComponentArray(    
     km = 0.077, #motor constant
     J = 0.231, #wheel inertia
-    a = [1,0,0], #axis of rotation in reference frame    
+    a = a[1], #axis of rotation in reference frame    
 )
 
 p_rw2 = ComponentArray(    
     km = 0.077, #motor constant
     J = 0.231, #wheel inertia
-    a = [0,1,0], #axis of rotation in reference frame    
+    a = a[2], #axis of rotation in reference frame    
 )
 
 p_rw3 = ComponentArray(    
     km = 0.077, #motor constant
     J = 0.231, #wheel inertia
-    a = [0,0,1], #axis of rotation in reference frame    
+    a = a[3], #axis of rotation in reference frame    
 )
 
-p_rw = [p_rw1,p_rw2,p_rw3]
+p_rw4 = ComponentArray(    
+    km = 0.077, #motor constant
+    J = 0.231, #wheel inertia
+    a = a[4], #axis of rotation in reference frame    
+)
 
-#=a = [
-        [0.76604,0.64279,0],
-        [0,0.64279,0.76604],
-        [-0.76604,0.64279,0],
-        [0,0.64279,-0.76604]
-        ]=#        
+p_rw = [p_rw1,p_rw2,p_rw3,p_rw4]
+     
 p_gravity = ComponentArray(
     μ = 3.986004418e14,
     R = 6.378137e6,
@@ -70,9 +82,9 @@ rmag0 = norm(r0)
 v0 = [2.56786681792351e3, 1.79527532306182e3, -6.82715713742553e3]
 
 x_body = ComponentArray(
-    θ = zeros(3),
+    θ = fakeNadir(r0,v0),
     q = [0,0,0,1],
-    ω = [.1*pi/180,0,0],
+    ω = [0, -0.0011, 0]; # [rad/sec],
     H = zeros(3),
     Hi = zeros(3),
     Te = zeros(3),
@@ -83,9 +95,11 @@ x_body = ComponentArray(
 )
     
 x_controller = ComponentArray(
-    u = zeros(length(p_rw)),
-    θr = [0,0,0],
-    ωr = [0,0,0], 
+    u = zeros(3),
+    θr = fakeNadir(r0,v0),
+    ωr =[0, -0.0011, 0], 
+    attitudeError = zeros(3),
+    rateError = zeros(3),
 )
 
 ω = 0
@@ -114,7 +128,16 @@ x_rw3 = ComponentArray(
     Hw = p.rw[3].J * ω, # wheel momentum
     Hb = zeros(3), # wheel momentum in body frame
 )
-x_rw = [x_rw1,x_rw2,x_rw3]
+
+ω = 0
+x_rw4 = ComponentArray(
+    ω = ω, #wheel speed
+    Tw = 0, #wheel torque
+    Tb = zeros(3), #wheel torque in body frame
+    Hw = p.rw[4].J * ω, # wheel momentum
+    Hb = zeros(3), # wheel momentum in body frame
+)
+x_rw = [x_rw1,x_rw2,x_rw3,x_rw4]
 
 x_gravity = ComponentArray(
     a = zeros(3)
@@ -130,5 +153,5 @@ x0 = ComponentArray(
 
 """ ODE """
 
-prob = ODEProblem(model!,x0,(0,10000),p)
+prob = ODEProblem(model!,x0,(0,5000),p)
 sol = solve(prob,Tsit5(),callback=CallbackSet(gravity,bodyRotationCallback,fsw,rw))
