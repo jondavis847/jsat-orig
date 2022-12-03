@@ -10,20 +10,18 @@ end
 
 ### Reaction Wheels ###
 
-function reactionWheels!(dx, x, p, t)
-    for i = 1:length(x.rw)
-        dx.rw[i].ω = x.rw[i].Tw / p.rw[i].J
-    end
+function reactionWheels!(dx, x, p, t)    
+    dx.rw.ω = x.rw.Tw ./ p.rw.J    
 end
 
 function reactionWheels_cb!(S)
-    for i = 1:length(S.u.rw)
-        S.u.rw[i].Tw = S.p.rw[i].km * S.u.controller.u[i]
-        S.u.rw[i].Hw = S.p.rw[i].J * S.u.rw[i].ω
-        S.u.rw[i].Tb = S.u.rw[i].Tw * S.p.rw[i].a
-        S.u.rw[i].Hb = S.u.rw[i].Hw * S.p.rw[i].a
-    end
-    S.u.body.Ti = sum([S.u.rw[i].Tb for i in 1:length(S.u.rw)])
-    S.u.body.Hi = sum([S.u.rw[i].Hb for i in 1:length(S.u.rw)])
+    
+    S.u.rw.Tw = S.p.rw.km .* S.u.controller.u
+    S.u.rw.Hw = S.p.rw.J .* S.u.rw.ω
+    S.u.rw.Tb = [(S.u.rw.Tw .* eachcol(S.p.rw.a))'...;]
+    S.u.rw.Hb = [(S.u.rw.Hw .* eachcol(S.p.rw.a))'...;]
+    
+    S.u.body.Ti = sum(S.u.rw.Tb,dims=2)
+    S.u.body.Hi = sum(S.u.rw.Hb,dims=2)
 end
 

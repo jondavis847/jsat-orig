@@ -15,10 +15,10 @@ p_body = ComponentArray(
     cg = cg,    
 )
 
-a1 =  [0.76604,0.64279,0]
-a2 =  [0,0.64279,0.76604]
-a3 =  [-0.76604,0.64279,0]
-a4 =  [0,0.64279,-0.76604]
+a1 = [0.76604,0.64279,0]
+a2 = [0,0.64279,0.76604]
+a3 = [-0.76604,0.64279,0]
+a4 = [0,0.64279,-0.76604]
 a = [a1,a2,a3,a4]
 
 b_to_rw = [a'...;]
@@ -56,40 +56,19 @@ p_controller = ComponentArray(
         EnableMomMax     = 0   # Flag to select enforcement of wheel momentum magnitude limit (0=DIS, 1=ENA)
   )
 
-p_rw1 = ComponentArray(    
-    km = 0.077, #motor constant
-    J = 0.231, #wheel inertia
-    a = a[1], #axis of rotation in reference frame 
-    WhTqMax = 0.45,   # Max wheel torque (N*m)
-    WhMomMax = 70,     # Max wheel momentum (N*m*s)   
+wheel_km = SVector{4}(0.077 * ones(4))
+wheel_J = SVector{4}(0.231 * ones(4))
+wheel_trq_max = 0.45 * ones(4)
+wheel_momentum_max = 70 * ones(4)
+
+p_rw = ComponentArray(    
+    km = wheel_km, #motor constant
+    J = wheel_J, #wheel inertia
+    a = [a'...;]', #axis of rotation in reference frame, convert to matrix since component arrays can't have arrays of arrays :(  
+    WhTqMax = wheel_trq_max,   # Max wheel torque (N*m)
+    WhMomMax = wheel_momentum_max,     # Max wheel momentum (N*m*s)    
 )
 
-p_rw2 = ComponentArray(    
-    km = 0.077, #motor constant
-    J = 0.231, #wheel inertia
-    a = a[2], #axis of rotation in reference frame 
-    WhTqMax = 0.45,   # Max wheel torque (N*m)
-    WhMomMax = 70,     # Max wheel momentum (N*m*s)    
-)
-
-p_rw3 = ComponentArray(    
-    km = 0.077, #motor constant
-    J = 0.231, #wheel inertia
-    a = a[3], #axis of rotation in reference frame    
-    WhTqMax = 0.45,   # Max wheel torque (N*m)
-    WhMomMax = 70,     # Max wheel momentum (N*m*s)  
-)
-
-p_rw4 = ComponentArray(    
-    km = 0.077, #motor constant
-    J = 0.231, #wheel inertia
-    a = a[4], #axis of rotation in reference frame  
-    WhTqMax = 0.45,   # Max wheel torque (N*m)
-    WhMomMax = 70,     # Max wheel momentum (N*m*s)    
-)
-
-p_rw = [p_rw1,p_rw2,p_rw3,p_rw4]
-     
 p_gravity = ComponentArray(
     μ = 3.986004418e14,
     R = 6.378137e6,
@@ -159,42 +138,14 @@ x_controller = ComponentArray(
     integralError = zeros(3)
 )
 
-ω = 0
-x_rw1 = ComponentArray(
-    ω = ω, #wheel speed
-    Tw = 0, #wheel torque
-    Tb = zeros(3), #wheel torque in body frame
-    Hw = p.rw[1].J * ω, # wheel momentum
-    Hb = zeros(3) # wheel momentum in body frame
+wheel_speeds = zeros(4) #rad/sec
+x_rw = ComponentArray(
+    ω = wheel_speeds, #wheel speed
+    Tw = zeros(4), #wheel torque
+    Tb = zeros(3,length(wheel_speeds)), #wheel torque in body frame
+    Hw = p.rw.J .* wheel_speeds, # wheel momentum
+    Hb = zeros(3,length(wheel_speeds)) # wheel momentum in body frame
 )
-
-ω = 0
-x_rw2 = ComponentArray(
-    ω = ω, #wheel speed
-    Tw = 0, #wheel torque
-    Tb = zeros(3), #wheel torque in body frame
-    Hw = p.rw[2].J * ω, # wheel momentum
-    Hb = zeros(3) # wheel momentum in body frame
-)
-
-ω = 0
-x_rw3 = ComponentArray(
-    ω = ω, #wheel speed
-    Tw = 0, #wheel torque
-    Tb = zeros(3), #wheel torque in body frame
-    Hw = p.rw[3].J * ω, # wheel momentum
-    Hb = zeros(3) # wheel momentum in body frame
-)
-
-ω = 0
-x_rw4 = ComponentArray(
-    ω = ω, #wheel speed
-    Tw = 0, #wheel torque
-    Tb = zeros(3), #wheel torque in body frame
-    Hw = p.rw[4].J * ω, # wheel momentum
-    Hb = zeros(3) # wheel momentum in body frame
-)
-x_rw = [x_rw1,x_rw2,x_rw3,x_rw4]
 
 x_gravity = ComponentArray(
     a = zeros(3)
@@ -216,6 +167,9 @@ x0 = ComponentArray(
     environments = x_environments
 )
 
-
+fake_int = ComponentArray(
+    u = x0,
+    p = p
+)
 """ ODE """
 sol = simulate!(x0,p,(0,5000))

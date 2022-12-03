@@ -65,12 +65,12 @@ function reactionWheelTorqueCommand!(S)
     # Proportionally scale torque if torque command exceeds wheel capability
     RwCmdTqLim = rwTqCmd_w
     for idxWh = 1:4
-        if abs(RwCmdTqLim[idxWh]) > S.p.rw[idxWh].WhTqMax
-            RwCmdTqLim = RwCmdTqLim / abs(RwCmdTqLim[idxWh]) * S.p.rw[idxWh].WhTqMax
+        if abs(RwCmdTqLim[idxWh]) > S.p.rw.WhTqMax[idxWh]
+            RwCmdTqLim = RwCmdTqLim / abs(RwCmdTqLim[idxWh]) * S.p.rw.WhTqMax[idxWh]
         end
     end
 
-    S.u.controller.u  = [RwCmdTqLim[i] / p.rw[i].km for i in eachindex(p.rw)]
+    S.u.controller.u  = RwCmdTqLim ./ p.rw.km
     #cmdCnt = uint16(CmdCurrent * 32768 / 7 + 32768))
 end
 
