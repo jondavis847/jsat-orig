@@ -3,7 +3,7 @@ includet("jsat.jl")
 """Define Parameters"""
 
 mass = 1506.27
-inertia = [1529.097 -58.0883 -26.71023
+inertia = @SMatrix [1529.097 -58.0883 -26.71023
             -58.0883  1400.682 83.51491
             -26.71023  83.51491 2320.778]
 cg =  [-1.311708,     -0.122079,    -0.0302493]
@@ -15,10 +15,10 @@ p_body = ComponentArray(
     cg = cg,    
 )
 
-a1 = [0.76604,0.64279,0]
-a2 = [0,0.64279,0.76604]
-a3 = [-0.76604,0.64279,0]
-a4 = [0,0.64279,-0.76604]
+a1 = @SVector [0.76604,0.64279,0]
+a2 = @SVector [0,0.64279,0.76604]
+a3 = @SVector [-0.76604,0.64279,0]
+a4 = @SVector [0,0.64279,-0.76604]
 a = [a1,a2,a3,a4]
 
 b_to_rw = [a'...;]
@@ -69,6 +69,10 @@ p_rw = ComponentArray(
     WhMomMax = wheel_momentum_max,     # Max wheel momentum (N*m*s)    
 )
 
+egm96_model = parse_icgem("EGM96.gfc")
+egm96_coefs = create_gravity_model_coefs(egm96_model)
+egm96_coefs = load_gravity_model(EGM96())
+
 p_gravity = ComponentArray(
     μ = 3.986004418e14,
     R = 6.378137e6,
@@ -77,15 +81,17 @@ p_gravity = ComponentArray(
     J4 = -1.61962159137e-6,
     J5 = -2.27296082869e-7,
     J6 =  5.40681239107e-7,
+    egm96_coefs = egm96_coefs
 )
 
-#p_geomagnetism = ComponentArray(
-#    eop_IAU1980 = get_iers_eop()
-#)
+eop_IAU1980 = get_iers_eop()
+p_geomagnetism = ComponentArray(
+    eop_IAU1980 = eop_IAU1980
+)
 
 p_environments = ComponentArray(
     gravity = p_gravity,
-    #geomagnetism = p_geomagnetism
+    geomagnetism = p_geomagnetism
 )
 p = ComponentArray(    
     body = p_body,
@@ -97,15 +103,8 @@ p = ComponentArray(
 
 """Initial States"""
 
-epoch = ComponentArray(
-    Y = 2023.,
-    M = 1.,
-    D = 1.,
-    h = 12.,
-    m = 0.,
-    s = 0.
+epoch = Dates.datetime2julian(DateTime(2023,1,1,12,0,0))
 
-)
 x_orbit = ComponentArray(
     epoch =  epoch
 )
@@ -114,23 +113,28 @@ r0 =  [-6.32053381835774e6, -1.49222035669749e6, -2.77429961381375e6]
 rmag0 = norm(r0)
 v0 =  [2.56786681792351e3, 1.79527532306182e3, -6.82715713742553e3]
 
-x_body = ComponentArray(
-    #θ = fakeNadir(r0,v0),
+eci_to_ecef = r_eci_to_ecef(J2000(), ITRF(), epoch,eop_IAU1980)
+r_ecef = eci_to_ecef*r0
+lla = ecef_to_lla(r_ecef)
+
+x_body = ComponentArray(    
     q = fakeNadir(r0,v0),
     ω = [0, -0.0011, 0], # [rad/sec],
     H = zeros(3),
     Hi = zeros(3),
     Te = zeros(3),
     Ti = zeros(3),
-    r = r0,
+    eci_to_ecef = eci_to_ecef,
+    r_eci = r0,
+    r_ecef = r_ecef,
+    lla = lla,
     v = v0,
     rmag = rmag0
 )
     
 x_controller = ComponentArray(
     u = zeros(4),
-    TqCmdBcs = zeros(3),
-    #θr = fakeNadir(r0,v0),
+    TqCmdBcs = zeros(3),    
     qr = fakeNadir(r0,v0),
     ωr = [0, -0.0011, 0], 
     attitudeError = zeros(3),
@@ -140,8 +144,8 @@ x_controller = ComponentArray(
 
 wheel_speeds = zeros(4) #rad/sec
 x_rw = ComponentArray(
-    ω = wheel_speeds, #wheel speed
-    Tw = zeros(4), #wheel torque
+    ω = SVector{4}(wheel_speeds), #wheel speed
+    Tw = SVector{4}(zeros(4)), #wheel torque
     Tb = zeros(3,length(wheel_speeds)), #wheel torque in body frame
     Hw = p.rw.J .* wheel_speeds, # wheel momentum
     Hb = zeros(3,length(wheel_speeds)) # wheel momentum in body frame
@@ -172,4 +176,4 @@ fake_int = ComponentArray(
     p = p
 )
 """ ODE """
-sol = simulate!(x0,p,(0,5000))
+sol = simulate!(x0,p,(0,1))

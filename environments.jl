@@ -1,12 +1,21 @@
-using UnPack, ComponentArrays, SatelliteToolbox
+using UnPack, SatelliteToolbox
 includet("orbit.jl")
 
 """Environments """
 
 function environments_cb!(integrator)
-   gravity_cb!(integrator)
-   geomagnetism_cb!(integrator)
-   #stb_geomagnetism_cb!(integrator)
+   #gravity_cb!(integrator)
+   #geomagnetism_cb!(integrator)
+   stb_gravity_cb!(integrator)
+   stb_geomagnetism_cb!(integrator)
+end
+
+function stb_gravity_cb!(S)
+    S.u.environments.gravity.a = S.u.body.eci_to_ecef' * compute_g(S.p.environments.gravity.egm96_coefs, S.u.body.r_ecef)        
+end
+#over load length of gravity model to support component arrays
+function Base.length(in::GravityModel_Coefs{Float64})
+    return 0
 end
 
 function gravity_cb!(S)
@@ -49,18 +58,14 @@ end
 
 
 """ Geomagnetism """
-function stb_geomagnetism_cb!(S)
-
-    R = r_eci_to_ecef(GCRF(), ITRF(), date_to_jd(
-        S.u.orbit.epoch.Y,
-        S.u.orbit.epoch.M,
-        S.u.orbit.epoch.D,
-        12, 0, 0), S.p.geomagnetism.eop_IAU1980)
-    r_ecef = R*S.u.body.r
-    lla = ecef_to_geodetic(r_ecef)
-    S.u.environments.geomagnetism.B = igrf(2023.0, lla[3], lla[1], lla[2], Val(:geodetic))
+function stb_geomagnetism_cb!(S)    
+    S.u.environments.geomagnetism.B = igrf(2023.0, S.u.body.lla[3], S.u.body.lla[1], S.u.body.lla[2], Val(:geodetic))
 end
 
+#need to overload EOP length to work with component arrays
+function Base.length(in::EOPData_IAU1980)
+    return 0
+end
 
 function geomagnetism_cb!(integrator)
     # IGRFMAG Uses International Geomagnetic Reference Field

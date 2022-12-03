@@ -1,4 +1,4 @@
-using ComponentArrays, DifferentialEquations, LinearAlgebra, UnPack, Rotations, StaticArrays
+using ComponentArrays, DifferentialEquations, LinearAlgebra, UnPack, Rotations, StaticArrays,Dates
 includet("utils.jl")
 includet("environments.jl")
 includet("orbit.jl")
@@ -15,12 +15,14 @@ function model!(dx, x, p, t)
 end
 
 function model_cb!(integrator)
-    environments_cb!(integrator)
-    actuators_cb!(integrator)
+    time_cb!(integrator)
     eom_cb!(integrator)
+    environments_cb!(integrator)
+    actuators_cb!(integrator)    
+    fsw!(integrator)
 end
 
-model_cb = PeriodicCallback(model_cb!,lograte)
+model_cb = PeriodicCallback(model_cb!,lograte,save_positions = (true,false))
 
 
 """ True Dynamics """
@@ -31,14 +33,25 @@ end
 
 function eom_cb!(integrator)
     bodyRotation_cb!(integrator)
+    bodyTranslation_cb!(integrator)
 end
 
+function time_cb!(S)    
+    S.u.orbit.epoch = S.u.orbit.epoch + (S.t-S.tprev)/86400.0
+end
 
 # Body Translation
 
 function bodyTranslation!(dx, x, p, t)
-    dx.body.r = x.body.v
-    dx.body.v = -p.environments.gravity.μ / (norm(x.body.r)^3) * x.body.r + x.environments.gravity.a
+    dx.body.r_eci = x.body.v
+    #dx.body.v = -p.environments.gravity.μ / (norm(x.body.r)^3) * x.body.r + x.environments.gravity.a
+    dx.body.v = x.environments.gravity.a
+end
+
+function bodyTranslation_cb!(S)
+    S.u.body.eci_to_ecef = r_eci_to_ecef(J2000(), ITRF(), S.u.orbit.epoch, S.p.environments.geomagnetism.eop_IAU1980)    
+    S.u.body.r_ecef = S.u.body.eci_to_ecef * S.u.body.r_eci
+    S.u.body.lla = SVector{3}(ecef_to_geodetic(S.u.body.r_ecef))
 end
 
 # Body Rotation 
@@ -66,10 +79,18 @@ function bodyRotation_cb!(S)
     end
 end
 
+
+function Base.oneunit(::Type{Any})
+    return 1
+end
+function Base.zero(::Type{Any})
+    return 0
+end
+
+
 """ Simulation """
 function simulate!(x0,p,tspan)
 prob = ODEProblem(model!,x0,tspan,p)
-sol = solve(prob,Tsit5(),callback=CallbackSet(model_cb,fsw))
+sol = solve(prob,Tsit5(),callback=model_cb)#CallbackSet(model_cb,fsw))
 return sol
 end
-

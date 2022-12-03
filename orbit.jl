@@ -1,8 +1,15 @@
-using StaticArrays
+using StaticArrays,SatelliteToolbox,Dates
 
 # Julian date calculation
-jd(Y, M, D, h, m, s) = 1721013.5 + 367 * Y - trunc(7 / 4 * (Y + trunc((M + 9) / 12))) + trunc(275 * M / 9) + D + (60 * h + m + s / 60) / 1440
 
+jd(Y, M, D, h, m, s) = 1721013.5 + 367 * Y - trunc(7 / 4 * (Y + trunc((M + 9) / 12))) + trunc(275 * M / 9) + D + (60 * h + m + s / 60) / 1440
+jd(t::DateTime) = jd(Dates.year(t),Dates.month(t),Dates.day(t),Dates.hour(t),Dates.minute(t),Dates.second(t)+Dates.millisecond(t))
+date_to_jd(t::DateTime) = SatelliteToolbox.date_to_jd(Dates.year(t),Dates.month(t),Dates.day(t),Dates.hour(t),Dates.minute(t),Dates.second(t)+Dates.millisecond(t))
+function Base.length(in::DateTime)
+    return 0
+end
+
+#=
 function eci_to_ecef(epoch)
     @unpack Y, M, D, h, m, s = epoch
     # Number of julian centuries elapsed from the epoch j2000.0 to zero hours of the date in question
@@ -18,7 +25,7 @@ function eci_to_ecef(epoch)
     ]
     return R_EciToEcef
 end
-
+=#
 # ECEF to Latitude,Longitude,Altitude (LLA)
 #Markley/Crassidis equations 2.77(a-g)
 function ecef_to_lla_not_working(r_ecef)

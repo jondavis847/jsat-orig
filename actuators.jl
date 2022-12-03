@@ -11,13 +11,13 @@ end
 ### Reaction Wheels ###
 
 function reactionWheels!(dx, x, p, t)    
-    dx.rw.ω = x.rw.Tw ./ p.rw.J    
+    dx.rw.Hw = x.rw.Tw
 end
 
 function reactionWheels_cb!(S)
     
     S.u.rw.Tw = S.p.rw.km .* S.u.controller.u
-    S.u.rw.Hw = S.p.rw.J .* S.u.rw.ω
+    S.u.rw.ω = S.u.rw.Hw ./ S.p.rw.J    
     S.u.rw.Tb = [(S.u.rw.Tw .* eachcol(S.p.rw.a))'...;]
     S.u.rw.Hb = [(S.u.rw.Hw .* eachcol(S.p.rw.a))'...;]
     

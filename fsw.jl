@@ -7,11 +7,11 @@ function fsw!(integrator)
     reactionWheelTorqueCommand!(integrator)
 end
 
-fsw = PeriodicCallback(fsw!, fswrate)
+fsw = PeriodicCallback(fsw!, fswrate, save_positions = (false,true))
 
 function attitudeError!(S)
     #S.u.controller.θr = fakeNadir(S.u.body.r,S.u.body.v)
-    S.u.controller.qr = fakeNadir(S.u.body.r, S.u.body.v)
+    S.u.controller.qr = fakeNadir(S.u.body.r_eci, S.u.body.v)
     S.u.controller.ωr = S.p.controller.refrate
 
     S.u.controller.attitudeError = qtov(qmult(qinv(S.u.controller.qr), S.u.body.q))
