@@ -131,7 +131,7 @@
         - 
         - function limitLowerUpper(val, lower, upper)
         0     for i in eachindex(val)
-     2544         val[i] = val[i] > upper[i] ? upper[i] : val[i]
+     2576         val[i] = val[i] > upper[i] ? upper[i] : val[i]
         0         val[i] = val[i] < lower[i] ? lower[i] : val[i]
         -     end
         0     return val

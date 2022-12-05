@@ -5,11 +5,10 @@
         - jd(Y, M, D, h, m, s) = 1721013.5 + 367 * Y - trunc(7 / 4 * (Y + trunc((M + 9) / 12))) + trunc(275 * M / 9) + D + (60 * h + m + s / 60) / 1440
         - jd(t::DateTime) = jd(Dates.year(t),Dates.month(t),Dates.day(t),Dates.hour(t),Dates.minute(t),Dates.second(t)+Dates.millisecond(t))
         - date_to_jd(t::DateTime) = SatelliteToolbox.date_to_jd(Dates.year(t),Dates.month(t),Dates.day(t),Dates.hour(t),Dates.minute(t),Dates.second(t)+Dates.millisecond(t))
-        - function Base.length(in::DateTime)
-        -     return 0
-        - end
-        - 
         - #=
+        - Base.length(in::DateTime)= 0
+        - Base.UNITLESS_ABS2(in::DateTime) = 0
+        - 
         - function eci_to_ecef(epoch)
         -     @unpack Y, M, D, h, m, s = epoch
         -     # Number of julian centuries elapsed from the epoch j2000.0 to zero hours of the date in question
@@ -95,26 +94,10 @@
         0     return @SVector [lat, lon, alt]
         - end
         - 
-        - function decyear(epoch)
-        -     #  DECYEAR Calculate decimal year.
-        -     #   DY = DECYEAR( V ) converts one or more date vectors V into decimal year
-        -     #   DY.  Input V can be an M-by-6 or M-by-3 matrix containing M full or
-        -     #   partial date vectors respectively.  DECYEAR returns a column vector of
-        -     #   M decimal years.
-        -     #
-        -     #   A date vector contains six elements, specifying year, month, day, hour,
-        -     #   minute, and second. A partial date vector has three elements,
-        -     #   specifying year, month, and day.  Each element of V must be a positive
-        -     #   double precision number.
-        -     
-        -     leapyear = (((epoch.Y % 4) == 0) & ((epoch.Y % 100) != 0)) | ((epoch.Y % 400)  == 0)
-        -     
-        -     ndays = leapyear ? 366 : 365
-        -     
-        -     dayofyear = jd(epoch.Y,epoch.M,epoch.D,0,0,0) - jd(epoch.Y,1,1,0,0,0)
-        -     
-        -     # calculate the decimal year
-        -     dyear = epoch.Y + dayofyear/ndays
-        - 
-        -     return dyear
+        - function decyear(datetime)    
+        0     leapyear = Dates.isleapyear(datetime)
+        0     ndays = leapyear ? 366 : 365
+        0     dayofyear = Dates.Day(floor(datetime,Dates.Day) - floor(datetime,Dates.Year))    
+        0     decyear = Dates.year(datetime) + dayofyear.value/ndays
+        0     return decyear
         - end

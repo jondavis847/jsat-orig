@@ -16,9 +16,9 @@
         - 
         - function reactionWheels_cb!(S)
         -     
-     5296     S.u.rw.Tw = S.p.rw.km .* S.u.controller.u
-     5072     S.u.rw.ω = S.u.rw.Hw ./ S.p.rw.J    
-     7680     S.u.rw.Tb = [(S.u.rw.Tw .* eachcol(S.p.rw.a))'...;]
+     5168     S.u.rw.Tw = S.p.rw.km .* S.u.controller.u
+     5424     S.u.rw.ω = S.u.rw.Hw ./ S.p.rw.J    
+     7776     S.u.rw.Tb = [(S.u.rw.Tw .* eachcol(S.p.rw.a))'...;]
      7728     S.u.rw.Hb = [(S.u.rw.Hw .* eachcol(S.p.rw.a))'...;]
         -     
       576     S.u.body.Ti = sum(S.u.rw.Tb,dims=2)

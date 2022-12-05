@@ -38,6 +38,7 @@
         - 
         - function time_cb!(S)    
         0     S.u.orbit.epoch = S.u.orbit.epoch + (S.t-S.tprev)/86400.0
+        -     #S.u.orbit.time = Dates.julian2datetime(S.u.orbit.epoch)
         - end
         - 
         - # Body Translation
@@ -49,7 +50,7 @@
         - end
         - 
         - function bodyTranslation_cb!(S)
-     1664     S.u.body.eci_to_ecef = r_eci_to_ecef(J2000(), ITRF(), S.u.orbit.epoch, S.p.environments.geomagnetism.eop_IAU1980)    
+     1632     S.u.body.eci_to_ecef = r_eci_to_ecef(J2000(), ITRF(), S.u.orbit.epoch, S.p.environments.geomagnetism.eop_IAU1980)    
      1008     S.u.body.r_ecef = S.u.body.eci_to_ecef * S.u.body.r_eci
         0     S.u.body.lla = SVector{3}(ecef_to_geodetic(S.u.body.r_ecef))
         - end

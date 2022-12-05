@@ -11,63 +11,27 @@
         - end
         - 
         - function stb_gravity_cb!(S)
-     1872     S.u.environments.gravity.a = S.u.body.eci_to_ecef' * compute_g(S.p.environments.gravity.egm96_coefs, S.u.body.r_ecef)        
+     1952     S.u.environments.gravity.a = S.u.body.eci_to_ecef' * compute_g(S.p.environments.gravity.egm96_coefs, S.u.body.r_ecef, 16, 16)
         - end
         - #over load length of gravity model to support component arrays
-        - function Base.length(in::GravityModel_Coefs{Float64})
-        -     return 0
-        - end
-        - 
-        - function gravity_cb!(S)
-        -     @unpack μ, R, J2, J3, J4, J5, J6 = S.p.environments.gravity
-        -     x, y, z = S.u.body.r
-        -     r = S.u.body.rmag
-        - 
-        -     aj2 = SVector{3}(-(3 / 2) * J2 * (μ / r^2) * (R / r)^2 * [
-        -                          (1 - 5 * (z / r)^2) * x / r
-        -                          (1 - 5 * (z / r)^2) * y / r
-        -                          (3 - 5 * (z / r)^2) * z / r
-        -                      ])
-        - 
-        -     aj3 = SVector{3}(-(1 / 2) * J3 * (μ / r^2) * (R / r)^3 * [
-        -                          5 * (7 * (z / r)^3 - 3 * (z / r)) * x / r
-        -                          5 * (7 * (z / r)^3 - 3 * (z / r)) * y / r
-        -                          3 * (10 * (z / r)^2 - 35 / 3 * (z / r)^4 - 1)
-        -                      ])
-        - 
-        -     aj4 = SVector{3}(-(5 / 8) * J4 * (μ / r^2) * (R / r)^4 * [
-        -                          (3 - 42 * (z / r)^2 + 63 * (z / r)^4) * x / r
-        -                          (3 - 42 * (z / r)^2 + 63 * (z / r)^4) * y / r
-        -                          -(15 - 70 * (z / r)^2 + 63 * (z / r)^4) * z / r
-        -                      ])
-        - 
-        -     aj5 = SVector{3}(-(1 / 8) * J5 * (μ / r^2) * (R / r)^5 * [
-        -                          3 * (35 * (z / r) - 210 * (z / r)^3 + 231 * (z / r)^5) * x / r
-        -                          3 * (35 * (z / r) - 210 * (z / r)^3 + 231 * (z / r)^5) * y / r
-        -                          (15 - 315 * (z / r)^2 + 945 * (z / r)^4 - 693 * (z / r)^6)
-        -                      ])
-        - 
-        -     aj6 = SVector{3}((1 / 16) * J6 * (μ / r^2) * (R / r)^6 * [
-        -                          (35 - 945 * (z / r)^2 + 3465 * (z / r)^4 - 3003 * (z / r)^6) * x / r
-        -                          (35 - 945 * (z / r)^2 + 3465 * (z / r)^4 - 3003 * (z / r)^6) * y / r
-        -                          (2205 * (z / r)^2 - 4851 * (z / r)^4 + 3003 * (z / r)^6 - 315) * z / r
-        -                      ])
-        - 
-        -     S.u.environments.gravity.a = aj2 + aj3 + aj4 + aj5 + aj6
-        - end
-        - 
+        - Base.length(in::GravityModel_Coefs{Float64}) = 0
         - 
         - """ Geomagnetism """
         - function stb_geomagnetism_cb!(S)    
-    32544     S.u.environments.geomagnetism.B = igrf(2023.0, S.u.body.lla[3], S.u.body.lla[1], S.u.body.lla[2], Val(:geodetic))
+        -     #IGRF is currently 3 times slower than dipole (3.5us vs 9.4ns, 26 vs 12 allocations)
+        0     decimal_year = decyear(Dates.julian2datetime(S.u.orbit.epoch))
+        -     
+        -     #B_ned = igrf(decimal_year, S.u.body.lla[3], S.u.body.lla[1], S.u.body.lla[2], Val(:geodetic))
+        -     #S.u.environments.geomagnetism.B_ecef = ned_to_ecef(B_ned,S.u.body.lla...)
+        -     
+     1184     S.u.environments.geomagnetism.B_ecef = geomag_dipole(x0.body.r_ecef,decimal_year)   
+        -     #S.u.environments.geomagnetism.B_ecef = igrf13syn(1,decimal_year,1,S.u.body.lla[3]/1000, 180-S.u.body.lla[1]*180/pi, S.u.body.lla[2]*180/pi)
         - end
         - 
         - #need to overload EOP length to work with component arrays
-        - function Base.length(in::EOPData_IAU1980)
-        -     return 0
-        - end
+        - Base.length(in::EOPData_IAU1980) = 0
         - 
-        - function geomagnetism_cb!(integrator)
+        - function geomagnetism_cb!(S)
         -     # IGRFMAG Uses International Geomagnetic Reference Field
         -     #
         -     #  Calculates the Earth magnetic field and secular variation at a specific
@@ -114,10 +78,9 @@
         -     #   [2] Blakely, R. J., "Potential Theory in Gravity & Magnetic Applications",
         -     #       Cambridge University Press, Cambridge UK, 1996.
         -     
-        -     lla = ecef_to_lla(eci_to_ecef(integrator.u.orbit.epoch)*integrator.u.body.r) 
-        -     latDeg = lla[1] * 180 / pi # [rad]->[deg]
-        -     lonDeg = lla[2] * 180 / pi # [rad]->]deg]
-        -     altM = lla[3] # [m]
+        -     latDeg = S.u.body.lla[1] * 180 / pi # [rad]->[deg]
+        -     lonDeg = S.u.body.lla[2] * 180 / pi # [rad]->]deg]
+        -     altM = S.u.body.lla[3] # [m]
         -     # IGRF max degree=13; 
         -     nMax = 13
         - 
@@ -125,14 +88,14 @@
         -     # Those are obtained from upload table.
         -     # igrfdata = webread('https://www.ngdc.noaa.gov/IAGA/vmod/coeffs/igrf13coeffs.txt');
         -     minYear = 2020
-        -     gh = [-29404.8, -1450.9, 4652.5, -2499.6, 2982.0, -2991.6, 1677.0, -734.6, 1363.2, -2381.2, -82.1, 1236.2, 241.9, 525.7, -543.4, 903.0, 809.5, 281.9, 86.3, -158.4, -309.4, 199.7, 48.0, -349.7, -234.3, 363.2, 47.7, 187.8, 208.3, -140.7, -121.2, -151.2, 32.3, 13.5, 98.9, 66.0, 65.5, -19.1, 72.9, 25.1, -121.5, 52.8, -36.2, -64.5, 13.5, 8.9, -64.7, 68.1, 80.6, -76.7, -51.5, -8.2, -16.9, 56.5, 2.2, 15.8, 23.5, 6.4, -2.2, -7.2, -27.2, 9.8, -1.8, 23.7, 9.7, 8.4, -17.6, -15.3, -0.5, 12.8, -21.1, -11.7, 15.3, 14.9, 13.7, 3.6, -16.5, -6.9, -0.3, 2.8, 5.0, 8.4, -23.4, 2.9, 11.0, -1.5, 9.8, -1.1, -5.1, -13.2, -6.3, 1.1, 7.8, 8.8, 0.4, -9.3, -1.4, -11.9, 9.6, -1.9, -6.2, 3.4, -0.1, -0.2, 1.7, 3.6, -0.9, 4.8, 0.7, -8.6, -0.9, -0.1, 1.9, -4.3, 1.4, -3.4, -2.4, -0.1, -3.8, -8.8, 3.0, -1.4, 0.0, -2.5, 2.5, 2.3, -0.6, -0.9, -0.4, 0.3, 0.6, -0.7, -0.2, -0.1, -1.7, 1.4, -1.6, -0.6, -3.0, 0.2, -2.0, 3.1, -2.6, -2.0, -0.1, -1.2, 0.5, 0.5, 1.3, 1.4, -1.2, -1.8, 0.7, 0.1, 0.3, 0.8, 0.5, -0.2, -0.3, 0.6, -0.5, 0.2, 0.1, -0.9, -1
-        -     sv = [5.7, 7.4, -25.9, -11.0, -7.0, -30.2, -2.1, -22.4, 2.2, -5.9, 6.0, 3.1, -1.1, -12.0, 0.5, -1.2, -1.6, -0.1, -5.9, 6.5, 5.2, 3.6, -5.1, -5.0, -0.3, 0.5, 0.0, -0.6, 2.5, 0.2, -0.6, 1.3, 3.0, 0.9, 0.3, -0.5, -0.3, 0.0, 0.4, -1.6, 1.3, -1.3, -1.4, 0.8, 0.0, 0.0, 0.9, 1.0, -0.1, -0.2, 0.6, 0.0, 0.6, 0.7, -0.8, 0.1, -0.2, -0.5, -1.1, -0.8, 0.1, 0.8, 0.3, 0.0, 0.1, -0.2, -0.1, 0.6, 0.4, -0.2, -0.1, 0.5, 0.4, -0.3, 0.3, -0.4, -0.1, 0.5, 0.4, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0
+        -     gh = @SVector [-29404.8, -1450.9, 4652.5, -2499.6, 2982.0, -2991.6, 1677.0, -734.6, 1363.2, -2381.2, -82.1, 1236.2, 241.9, 525.7, -543.4, 903.0, 809.5, 281.9, 86.3, -158.4, -309.4, 199.7, 48.0, -349.7, -234.3, 363.2, 47.7, 187.8, 208.3, -140.7, -121.2, -151.2, 32.3, 13.5, 98.9, 66.0, 65.5, -19.1, 72.9, 25.1, -121.5, 52.8, -36.2, -64.5, 13.5, 8.9, -64.7, 68.1, 80.6, -76.7, -51.5, -8.2, -16.9, 56.5, 2.2, 15.8, 23.5, 6.4, -2.2, -7.2, -27.2, 9.8, -1.8, 23.7, 9.7, 8.4, -17.6, -15.3, -0.5, 12.8, -21.1, -11.7, 15.3, 14.9, 13.7, 3.6, -16.5, -6.9, -0.3, 2.8, 5.0, 8.4, -23.4, 2.9, 11.0, -1.5, 9.8, -1.1, -5.1, -13.2, -6.3, 1.1, 7.8, 8.8, 0.4, -9.3, -1.4, -11.9, 9.6, -1.9, -6.2, 3.4, -0.1, -0.2, 1.7, 3.6, -0.9, 4.8, 0.7, -8.6, -0.9, -0.1, 1.9, -4.3, 1.4, -3.4, -2.4, -0.1, -3.8, -8.8, 3.0, -1.4, 0.0, -2.5, 2.5, 2.3, -0.6, -0.9, -0.4, 0.3, 0.6, -0.7, -0.2, -0.1, -1.7, 1.4, -1.6, -0.6, -3.0, 0.2, -2.0, 3.1, -2.6, -2.0, -0.1, -1.2, 0.5, 0.5, 1.3, 1.4, -1.2, -1.8, 0.7, 0.1, 0.3, 0.8, 0.5, -0.2, -0.3, 0.6, -0.5, 0.2, 0.1,
+        -     sv = @SVector [5.7, 7.4, -25.9, -11.0, -7.0, -30.2, -2.1, -22.4, 2.2, -5.9, 6.0, 3.1, -1.1, -12.0, 0.5, -1.2, -1.6, -0.1, -5.9, 6.5, 5.2, 3.6, -5.1, -5.0, -0.3, 0.5, 0.0, -0.6, 2.5, 0.2, -0.6, 1.3, 3.0, 0.9, 0.3, -0.5, -0.3, 0.0, 0.4, -1.6, 1.3, -1.3, -1.4, 0.8, 0.0, 0.0, 0.9, 1.0, -0.1, -0.2, 0.6, 0.0, 0.6, 0.7, -0.8, 0.1, -0.2, -0.5, -1.1, -0.8, 0.1, 0.8, 0.3, 0.0, 0.1, -0.2, -0.1, 0.6, 0.4, -0.2, -0.1, 0.5, 0.4, -0.3, 0.3, -0.4, -0.1, 0.5, 0.4, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.
         - 
         -     ## Interpolate/Extrapolate coefficients
         -     # Interpolate/Extrapolate coefficients if necessary
         -     # gha = zeros(ghArraySize,1); ##ok<PREALL>
         -     # Extrapolation
-        -     deltaTime = decyear(integrator.u.orbit.epoch) - minYear
+        -     deltaTime = decyear(Dates.julian2datetime(S.u.orbit.epoch)) - minYear
         -     # Adjusted Schmidt semi-normalised spherical harmonic coefficients
         -     gha = gh + deltaTime * sv
         - 
@@ -143,10 +106,10 @@
         -     b2 = 4.040829998408706e7
         - 
         -     # preallocate vectors for calculations
-        -     sl = zeros(14)
-        -     cl = zeros(14)
-        -     p = zeros(119)
-        -     q = zeros(119)
+        -     sl = @MArray zeros(14)
+        -     cl = @MArray zeros(14)
+        -     p = @MArray zeros(119)
+        -     q = @MArray zeros(119)
         - 
         -     # initialize outputs
         -     x = 0
@@ -259,24 +222,37 @@
         -     z = z * cd - x_old * sd
         - 
         -     # Vectorize Northward, Eastward and Downward components
-        -     bVecNED = [x, y, z]
+        -     bVecNED = @SVector [x, y, z]
         - 
         -     ## Convert magnetic field from NED to ECEF
+        - 
+        -     m1 = @SMatrix [
+        -         -sind(latDeg) 0 cosd(latDeg)
+        -         0 1 0
+        -         -cosd(latDeg) 0 -sind(latDeg)
+        -     ]
+        -     m2 = @SMatrix [
+        -         cosd(lonDeg) sind(lonDeg) 0
+        -         -sind(lonDeg) cosd(lonDeg) 0
+        -         0 0 1
+        -     ]
+        -     #=
         -     C_ecef2ned = [
         -         -sind(latDeg) 0 cosd(latDeg)
         -         0 1 0
         -         -cosd(latDeg) 0 -sind(latDeg)
         -     ] *
-        -                  [
+        -                 [
         -         cosd(lonDeg) sind(lonDeg) 0
         -         -sind(lonDeg) cosd(lonDeg) 0
         -         0 0 1
         -     ]
-        - 
+        - =#
         - 
         -     # Rotate to Earth-Centered, Earth-Fixed frame
-        -     bVecECEF = C_ecef2ned' * bVecNED
+        -     #bVecECEF = C_ecef2ned' * bVecNED
+        -     bVecECEF = (m1*m2)' * bVecNED
         - 
-        -     integrator.u.environments.geomagnetism.B = bVecECEF
+        -     S.u.environments.geomagnetism.B = bVecECEF
         - end# igrfmag()
         - 

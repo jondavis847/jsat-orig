@@ -123,6 +123,21 @@ function qmult(q_A2B, q_B2C) # 162.533 ns (3 allocations: 288 bytes)
     return q_A2C
 end # qmult()
 
+function qvrot(q,v,Transform = true)
+    #can be transform or rotation
+    #transform: physical orientation is constant, but represented in different frames
+    #rotation: physical orientation is changing, represented in the same frame
+    vmag = norm(v)
+    u_v = normalize(v)    
+    v_aug = [u_v;0]
+    if Transform
+        q = qinv(q)
+    end
+
+    q = qmult(q,qmult(q,v_aug))    
+    return vmag*q[1:3]
+end
+
 function getsol(sol, names...)
     return map(sol.u) do u
         reduce(Base.maybeview, names; init=u)

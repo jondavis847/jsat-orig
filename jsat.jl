@@ -18,7 +18,7 @@ function model_cb!(integrator)
     time_cb!(integrator)
     eom_cb!(integrator)
     environments_cb!(integrator)
-    actuators_cb!(integrator)    
+    actuators_cb!(integrator)   # make sure act is after env (mtb) 
     fsw!(integrator)
 end
 
@@ -38,20 +38,23 @@ end
 
 function time_cb!(S)    
     S.u.orbit.epoch = S.u.orbit.epoch + (S.t-S.tprev)/86400.0
+    #S.u.orbit.time = Dates.julian2datetime(S.u.orbit.epoch) #datetime type as a state is causing issues
 end
 
 # Body Translation
 
 function bodyTranslation!(dx, x, p, t)
-    dx.body.r_eci = x.body.v
+    dx.body.r_eci = x.body.v_eci
     #dx.body.v = -p.environments.gravity.μ / (norm(x.body.r)^3) * x.body.r + x.environments.gravity.a
-    dx.body.v = x.environments.gravity.a
+    dx.body.v_eci = x.environments.gravity.a
 end
 
 function bodyTranslation_cb!(S)
     S.u.body.eci_to_ecef = r_eci_to_ecef(J2000(), ITRF(), S.u.orbit.epoch, S.p.environments.geomagnetism.eop_IAU1980)    
     S.u.body.r_ecef = S.u.body.eci_to_ecef * S.u.body.r_eci
     S.u.body.lla = SVector{3}(ecef_to_geodetic(S.u.body.r_ecef))
+
+   # S.u.body.v_b = qvrot(S.u.body.q,S.u.body.v_eci)
 end
 
 # Body Rotation 
@@ -67,26 +70,22 @@ function bodyRotation!(dx, x, p, t)
     ]
 
     dx.body.q = 0.5 * Q * x.body.ω
-    dx.body.H = x.body.Te - x.body.Ti - cross(x.body.ω, x.body.H)
+    dx.body.Hb = x.body.Te - x.body.Ti - cross(x.body.ω, x.body.Hs)
     #dx.body.ω = p.body.invJ*(x.body.Te - x.body.Ti - cross(x.body.ω,x.body.H))         
 end
 
 function bodyRotation_cb!(S)
     #S.u.body.H = S.p.body.J*S.u.body.ω + S.u.body.Hi     
-    S.u.body.ω = S.p.body.invJ * (S.u.body.H - S.u.body.Hi)
+    S.u.body.Hs = S.u.body.Hb + S.u.body.Hi
+    S.u.body.ω = S.p.body.invJ * S.u.body.Hb
     if S.u.body.q[4] < 0
         S.u.body.q = -S.u.body.q
     end
-end
 
-
-function Base.oneunit(::Type{Any})
-    return 1
+    S.u.body.Te = S.u.actuators.mtb.Tb
+    S.u.body.Ti = sum(S.u.actuators.rw.Tb,dims=2)
+    S.u.body.Hi = sum(S.u.actuators.rw.Hb,dims=2)
 end
-function Base.zero(::Type{Any})
-    return 0
-end
-
 
 """ Simulation """
 function simulate!(x0,p,tspan)

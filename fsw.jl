@@ -5,13 +5,14 @@ function fsw!(integrator)
     attitudeError!(integrator)
     controller!(integrator)
     reactionWheelTorqueCommand!(integrator)
+    mtbTorqueCommand!(integrator)
 end
 
 fsw = PeriodicCallback(fsw!, fswrate, save_positions = (false,true))
 
 function attitudeError!(S)
     #S.u.controller.θr = fakeNadir(S.u.body.r,S.u.body.v)
-    S.u.controller.qr = fakeNadir(S.u.body.r_eci, S.u.body.v)
+    S.u.controller.qr = fakeNadir(S.u.body.r_eci, S.u.body.v_eci)
     S.u.controller.ωr = S.p.controller.refrate
 
     S.u.controller.attitudeError = qtov(qmult(qinv(S.u.controller.qr), S.u.body.q))
@@ -73,6 +74,12 @@ function reactionWheelTorqueCommand!(S)
     S.u.controller.u  = RwCmdTqLim ./ p.rw.km
     #cmdCnt = uint16(CmdCurrent * 32768 / 7 + 32768))
 end
+
+function  mtbTorqueCommand!(S)
+    #Momentum Unload
+    MomUnload = S.u.body.Hs
+end
+
 
 function fakeNadir(r, v)
     #A3 = -normalize(S.u.body.r)
