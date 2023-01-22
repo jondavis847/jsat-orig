@@ -2,6 +2,11 @@ includet("jsat.jl")
 using Interpolations
 """Define Parameters"""
 
+p_config = ComponentArray(
+    geomagnetism = true,
+    atmosphere = true,
+)
+
 mass = 1506.27
 inertia = @SMatrix [1529.097 -58.0883 -26.71023
             -58.0883  1400.682 83.51491
@@ -73,13 +78,20 @@ current = Float64[-450,-405,-360,-315,-270,-225,-180,-90,0,90,180,225,270,315,36
 moment =  Float64[-450,-440,-430,-420,-400,-355,-300,-150,0,150,300,355,400,420,430,440,450]
 current_to_moment_curve = LinearInterpolation(current,moment)
 p_mtb = ComponentArray(
-    current_to_moment = current_to_moment_curve,
-    residual_moment = 1.3,
+    current_to_moment = linear_interpolation(current,moment),
+    current_lookup = Float64[-450,-405,-360,-315,-270,-225,-180,-90,0,90,180,225,270,315,360,405,450],
+    moment_lookup =  Float64[-450,-440,-430,-420,-400,-355,-300,-150,0,150,300,355,400,420,430,440,450],
+    residual_moment = 1.3*ones(3),
     mtb_to_brf = [
         -1 0 0
         0 1 0
         0 0 -1
-    ]
+    ],
+    dipole_gain = 1e5,
+    dipole_bias = zeros(3),
+    dipole_maxlinear = 340,
+    Moment2Current_Slope = [0.5800, 0.5690, 0.5690],
+    Moment2Current_Intercept = [-0.0440, 0.0090, -0.0220],
 )
 
 p_actuators = ComponentArray(rw = p_rw, mtb = p_mtb)
@@ -109,6 +121,7 @@ p_environments = ComponentArray(
     geomagnetism = p_geomagnetism
 )
 p = ComponentArray(    
+    config = p_config,
     body = p_body,
     controller = p_controller,    
     actuators = p_actuators,
@@ -159,19 +172,20 @@ x_controller = ComponentArray(
     integralError = zeros(3)
 )
 
-wheel_speeds = zeros(4) #rad/sec
+wheel_speeds = 100*ones(4)#zeros(4) #rad/sec
 x_rw = ComponentArray(
     ω = SVector{4}(wheel_speeds), #wheel speed
     Tw = SVector{4}(zeros(4)), #wheel torque
     Tb = zeros(3,length(wheel_speeds)), #wheel torque in body frame
-    Hw = p.rw.J .* wheel_speeds, # wheel momentum
+    Hw = p.actuators.rw.J .* wheel_speeds, # wheel momentum
     Hb = zeros(3,length(wheel_speeds)) # wheel momentum in body frame
 )
 
 x_mtb = ComponentArray(
     I = zeros(3),
     Mm = zeros(3),
-    Mb = zeros(3,3)
+    Mb = zeros(3),
+    Tb = zeros(3)
 )
 
 x_actuators = ComponentArray(
@@ -203,4 +217,4 @@ S = ComponentArray(
     p = p
 )
 """ ODE """
-sol = simulate!(x0,p,(0,1))
+sol = simulate!(x0,p,(0,1000))

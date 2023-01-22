@@ -91,5 +91,41 @@ end
 function simulate!(x0,p,tspan)
 prob = ODEProblem(model!,x0,tspan,p)
 sol = solve(prob,Tsit5(),callback=model_cb)#CallbackSet(model_cb,fsw))
-return sol
+return convertSol(sol.t,sol.u)
+end
+
+function recursive_sim!(x0,p,tspan,interval)
+    n = (tspan[2]-tspan[1])/interval
+    t = [tspan[1]]
+    u = [x0]
+    prob = ODEProblem(model!,x0,tspan,p)
+    t0 = tspan[1]
+    tf = t0+interval
+    uf = x0
+    for i in 1:n
+        prob = remake(prob,u0 = uf, tspan = (t0,tf))
+        sol = solve(prob,Tsit5(),callback=model_cb)
+        t0 = sol.t[end]
+        tf = t0+interval
+        push!(t,t0)
+        uf = sol.u[end]
+        push!(u,uf)
+    end
+    return convertSol(t,u)
+end
+
+function convertSol(t,u)
+    u_out = digdeeper(u)
+    return (t=t,u=u_out)
+end
+function digdeeper(in)
+    d = Dict()
+    for k in keys(in[1])
+        if in[1][k] isa ComponentVector
+           merge!(d,Dict(k => digdeeper(map(x->x[k],in))))
+        else
+            merge!(d,Dict(k=> map(x->x[k],in)))
+        end
+    end
+    return NamedTuple(d)
 end

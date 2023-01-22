@@ -52,7 +52,7 @@ function controller!(S)
 
 
     # Add gyroscopic & OCI feed-forward torque
-    S.u.controller.TqCmdBcs = tqCmdBcs - cross(S.u.body.ω, S.u.body.H)# + tgt.OciFfwdTorque;
+    S.u.controller.TqCmdBcs = tqCmdBcs - cross(S.u.body.ω, S.u.body.Hs)# + tgt.OciFfwdTorque;
 
 end
 
@@ -66,18 +66,31 @@ function reactionWheelTorqueCommand!(S)
     # Proportionally scale torque if torque command exceeds wheel capability
     RwCmdTqLim = rwTqCmd_w
     for idxWh = 1:4
-        if abs(RwCmdTqLim[idxWh]) > S.p.rw.WhTqMax[idxWh]
-            RwCmdTqLim = RwCmdTqLim / abs(RwCmdTqLim[idxWh]) * S.p.rw.WhTqMax[idxWh]
+        if abs(RwCmdTqLim[idxWh]) > S.p.actuators.rw.WhTqMax[idxWh]
+            RwCmdTqLim = RwCmdTqLim / abs(RwCmdTqLim[idxWh]) * S.p.actuators.rw.WhTqMax[idxWh]
         end
     end
 
-    S.u.controller.u  = RwCmdTqLim ./ p.rw.km
+    S.u.controller.u  = RwCmdTqLim ./ p.actuators.rw.km
     #cmdCnt = uint16(CmdCurrent * 32768 / 7 + 32768))
 end
 
 function  mtbTorqueCommand!(S)
-    #Momentum Unload
-    MomUnload = S.u.body.Hs
+    MomUnloadMagFld = cross(S.u.body.Hs, S.u.environments.geomagnetism.B_b)
+    Dipole_Bcs = S.p.actuators.mtb.dipole_gain .* MomUnloadMagFld
+    Dipole_Mtb = S.p.actuators.mtb.mtb_to_brf' * Dipole_Bcs + S.p.actuators.mtb.dipole_bias
+
+   # Re-scaling to compensate for the saturated MTB axis:
+    max_dipole = maximum(abs.(Dipole_Mtb)) 
+    if max_dipole > S.p.actuators.mtb.dipole_maxlinear
+        ScaleFactor = S.p.actuators.mtb.dipole_maxlinear / max_dipole
+    else
+        ScaleFactor = 1.0
+    end
+    
+    Dipole_Mtb  = Dipole_Mtb * ScaleFactor
+    S.u.actuators.mtb.I = S.p.actuators.mtb.Moment2Current_Slope .* Dipole_Mtb + S.p.actuators.mtb.Moment2Current_Intercept
+    
 end
 
 
