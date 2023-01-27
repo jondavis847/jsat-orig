@@ -1,9 +1,9 @@
 using LinearAlgebra
 #inverse quaternion,  btime 132.775 ns (3 allocations: 288 bytes)
-qinv(q) = SVector{4}(q .* [-1, -1, -1, 1] / norm(q)^2)
+qinv(q) = q .* SA[-1, -1, -1, 1] / norm(q)^2
 
 #quaternion to rotation vector,  #btime 197.586 ns (4 allocations: 320 bytes)
-qtov(q) = SVector{3}(2 * atan(norm(q[1:3]), q[4]) * normalize(q[1:3]))
+qtov(q) = 2 * atan(norm(q[1:3]), q[4]) * normalize(q[1:3])
 
 #rotation matrix to quaternion
 function atoq(A) # btime 548.634 ns (19 allocations: 928 bytes)   
@@ -129,13 +129,13 @@ function qvrot(q,v,Transform = true)
     #rotation: physical orientation is changing, represented in the same frame
     vmag = norm(v)
     u_v = normalize(v)    
-    v_aug = [u_v;0]
+    v_aug = append!(u_v,0)
     if Transform
         q = qinv(q)
     end
 
     q = qmult(q,qmult(q,v_aug))    
-    return vmag*q[1:3]
+    return vmag*view(q,1:3)
 end
 
 function getsol(sol, names...)
@@ -144,10 +144,16 @@ function getsol(sol, names...)
     end
 end
 
-function limitLowerUpper(val, lower, upper)
+function limitLowerUpper!(val, lower, upper)
     for i in eachindex(val)
-        val[i] = val[i] > upper[i] ? upper[i] : val[i]
-        val[i] = val[i] < lower[i] ? lower[i] : val[i]
+        if val[i] > upper[i]
+            val[i] = upper[i]
+        elseif val[i] < lower[i]
+            val[i] = lower[i]
+        end
+
+        #val[i] = val[i] > upper[i] ? upper[i] : val[i]
+        #val[i] = val[i] < lower[i] ? lower[i] : val[i]
     end
     return val
 end

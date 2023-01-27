@@ -50,8 +50,9 @@ function bodyTranslation!(dx, x, p, t)
 end
 
 function bodyTranslation_cb!(S)
-    S.u.body.eci_to_ecef = r_eci_to_ecef(J2000(), ITRF(), S.u.orbit.epoch, S.p.environments.geomagnetism.eop_IAU1980)    
-    S.u.body.r_ecef = S.u.body.eci_to_ecef * S.u.body.r_eci
+    S.u.body.eci_to_ecef = SMatrix{3,3}(r_eci_to_ecef(J2000(), ITRF(), S.u.orbit.epoch, S.p.environments.geomagnetism.eop_IAU1980))
+    S.u.body.r_ecef = SVector{3}(S.u.body.eci_to_ecef * S.u.body.r_eci)
+    S.u.body.rmag = norm(S.u.body.r_eci)
     S.u.body.lla = SVector{3}(ecef_to_geodetic(S.u.body.r_ecef))
 
    # S.u.body.v_b = qvrot(S.u.body.q,S.u.body.v_eci)
@@ -77,14 +78,14 @@ end
 function bodyRotation_cb!(S)
     #S.u.body.H = S.p.body.J*S.u.body.ω + S.u.body.Hi     
     S.u.body.Hs = S.u.body.Hb + S.u.body.Hi
-    S.u.body.ω = S.p.body.invJ * S.u.body.Hb
+    S.u.body.ω = SVector{3}(S.p.body.invJ * S.u.body.Hb)
     if S.u.body.q[4] < 0
         S.u.body.q = -S.u.body.q
     end
 
     S.u.body.Te = S.u.actuators.mtb.Tb
-    S.u.body.Ti = sum(S.u.actuators.rw.Tb,dims=2)
-    S.u.body.Hi = sum(S.u.actuators.rw.Hb,dims=2)
+    S.u.body.Ti = SVector{3}(sum(S.u.actuators.rw.Tb,dims=2))
+    S.u.body.Hi = SVector{3}(sum(S.u.actuators.rw.Hb,dims=2))
 end
 
 """ Simulation """

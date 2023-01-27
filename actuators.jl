@@ -16,8 +16,8 @@ function reactionWheels!(dx, x, p, t)
 end
 
 function reactionWheels_cb!(S)    
-    S.u.actuators.rw.Tw = S.p.actuators.rw.km .* S.u.controller.u
-    S.u.actuators.rw.ω = S.u.actuators.rw.Hw ./ S.p.actuators.rw.J    
+    S.u.actuators.rw.Tw = SVector{4}(S.p.actuators.rw.km .* S.u.controller.u)
+    S.u.actuators.rw.ω = SVector{4}(S.u.actuators.rw.Hw ./ S.p.actuators.rw.J)    
     S.u.actuators.rw.Tb = [(S.u.actuators.rw.Tw .* eachcol(S.p.actuators.rw.a))'...;]'
     S.u.actuators.rw.Hb = [(S.u.actuators.rw.Hw .* eachcol(S.p.actuators.rw.a))'...;]'
 end

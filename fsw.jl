@@ -27,8 +27,8 @@ end
 
 function controller!(S)
     # Assign values               
-    S.u.controller.attitudeError = limitLowerUpper(S.u.controller.attitudeError, -S.p.controller.aeLim_MS, S.p.controller.aeLim_MS)
-    S.u.controller.rateError = limitLowerUpper(S.u.controller.rateError, -S.p.controller.reLim_MS, S.p.controller.reLim_MS)
+    limitLowerUpper!(S.u.controller.attitudeError, -S.p.controller.aeLim_MS, S.p.controller.aeLim_MS)
+    limitLowerUpper!(S.u.controller.rateError, -S.p.controller.reLim_MS, S.p.controller.reLim_MS)
 
     # reset integrated error at mode entry
     #if LogicTlm.Mode ~= this.lastMode
@@ -41,7 +41,7 @@ function controller!(S)
         S.u.controller.integralError = @SVector zeros(3)
     else
         # PID ctrl
-        S.u.controller.integralError = limitLowerUpper(S.u.controller.integralError, -S.p.controller.iaeLim_MS, S.p.controller.iaeLim_MS)
+        limitLowerUpper!(S.u.controller.integralError, -S.p.controller.iaeLim_MS, S.p.controller.iaeLim_MS)
     end
 
     # TqCmdBcs computation
