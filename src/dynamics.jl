@@ -10,25 +10,21 @@ function eom_cb!(integrator)
 end
 
 function time_cb!(S)    
-    S.u.orbit.epoch = S.u.orbit.epoch + (S.t-S.tprev)/86400.0
-    #S.u.orbit.time = Dates.julian2datetime(S.u.orbit.epoch) #datetime type as a state is causing issues
+    S.u.orbit.epoch = S.u.orbit.epoch + (S.t-S.tprev)/86400.0    
 end
 
 # Body Translation
 
 function bodyTranslation!(dx, x, p, t)
-    dx.body.r_eci = x.body.v_eci
-    #dx.body.v = -p.environments.gravity.μ / (norm(x.body.r)^3) * x.body.r + x.environments.gravity.a
+    dx.body.r_eci = x.body.v_eci    
     dx.body.v_eci = x.environments.gravity.a
 end
 
 function bodyTranslation_cb!(S)
-    S.u.body.eci_to_ecef = SMatrix{3,3}(r_eci_to_ecef(J2000(), ITRF(), S.u.orbit.epoch, S.p.environments.geomagnetism.eop_IAU1980))
-    S.u.body.r_ecef = SVector{3}(S.u.body.eci_to_ecef * S.u.body.r_eci)
+    S.u.body.eci_to_ecef = r_eci_to_ecef(J2000(), ITRF(), S.u.orbit.epoch, S.p.environments.geomagnetism.eop_IAU1980)
+    S.u.body.r_ecef = S.u.body.eci_to_ecef * S.u.body.r_eci
     S.u.body.rmag = norm(S.u.body.r_eci)
-    S.u.body.lla = SVector{3}(ecef_to_geodetic(S.u.body.r_ecef))
-
-   # S.u.body.v_b = qvrot(S.u.body.q,S.u.body.v_eci)
+    S.u.body.lla = ecef_to_geodetic(S.u.body.r_ecef)
 end
 
 # Body Rotation 
@@ -55,6 +51,6 @@ function bodyRotation_cb!(S)
     end
 
     S.u.body.Te = S.u.actuators.mtb.Tb
-    S.u.body.Ti = SVector{3}(sum(S.u.actuators.rw.Tb,dims=2))
-    S.u.body.Hi = SVector{3}(sum(S.u.actuators.rw.Hb,dims=2))
+    S.u.body.Ti = sum(S.u.actuators.rw.Tb,dims=2)
+    S.u.body.Hi = sum(S.u.actuators.rw.Hb,dims=2)
 end

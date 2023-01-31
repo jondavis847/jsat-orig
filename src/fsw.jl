@@ -10,8 +10,7 @@ end
 
 fsw = PeriodicCallback(fsw!, fswrate, save_positions = (false,true))
 
-function attitudeError!(S)
-    #S.u.controller.θr = fakeNadir(S.u.body.r,S.u.body.v)
+function attitudeError!(S)    
     S.u.controller.qr = fakeNadir(S.u.body.r_eci, S.u.body.v_eci)
     S.u.controller.ωr = S.p.controller.refrate
 
@@ -20,9 +19,7 @@ function attitudeError!(S)
         S.u.controller.attitudeError = qtov(qmult(qinv(-S.u.controller.qr), S.u.body.q))
     end
     S.u.controller.rateError = S.u.body.ω - S.u.controller.ωr
-    S.u.controller.integralError = S.u.controller.integralError + S.u.controller.attitudeError * 0.1 # hardcoded for 10Hz processing
-    #S.u.controller.attitudeError = S.u.controller.θr-S.u.body.θ
-    #S.u.controller.rateError = S.u.controller.ωr-S.u.body.ω
+    S.u.controller.integralError = S.u.controller.integralError + S.u.controller.attitudeError * 0.1 # hardcoded for 10Hz processing    
 end
 
 function controller!(S)

@@ -68,14 +68,16 @@ function simulate!(x0,p,tspan; nruns = 1)
     sols = Vector{typeof(sol)}(undef,nruns)
     if nruns > 1        
         ps = Vector{typeof(p0)}(undef,nruns)
-        for n in 1:nruns
-            ps[n] = initModelParams(p,true)
-            new_prob = remake(prob,p=ps[n])
+        for r in 1:nruns
+            ps[r] = initModelParams(p,true)
+            new_prob = remake(prob,p=ps[r])
             new_sol = solve(new_prob,Tsit5(),callback=model_cb)
-            sols[n] = convertSol(new_sol.t,new_sol.u)
+            sols[r] = convertSol(new_sol.t,new_sol.u)
         end
-    end
-    return pushfirst!(sols,sol)
+        return (nominal = sol, disperse = sols, params = ps)
+    else
+        return sol
+    end    
 end
 
 function recursive_sim!(x0,p,tspan,interval)

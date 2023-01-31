@@ -1,4 +1,4 @@
-using LinearAlgebra
+using LinearAlgebra,StaticArrays
 #inverse quaternion,  btime 132.775 ns (3 allocations: 288 bytes)
 qinv(q) = q .* SA[-1, -1, -1, 1] / norm(q)^2
 
