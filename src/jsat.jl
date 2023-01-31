@@ -25,13 +25,57 @@ end
 
 model_cb = PeriodicCallback(model_cb!,lograte,save_positions = (true,false))
 
+""" Initialize """
+function initModelParams(in,MC=false)        
+    d = Dict() #initialize output
+    v(x) = !MC ? x.value : rand(x.dist) #function for pulling value or rand from dist
+    
+    for k in keys(in)        
+        if in[k] isa NamedTuple
+            # if it's another NT, dig deeper
+            merge!(d,Dict(k => initModelParams(in[k],MC)))        
+        elseif in[k] isa ModelParameter
+            # if it's just an MP, get the val
+            merge!(d,Dict(k=> v(in[k])))                
+        elseif (in[k] isa Vector{ModelParameter})
+            # if it's a vector, loop 1d
+            merge!(d,Dict(k => [v(in[k][j]) for j in eachindex(in[k])]))
+        elseif (in[k] isa Matrix{ModelParameter})
+            # if it's a matrix, loop 2d
+            tmp = zeros(size(in[k]))
+            for i in axes(tmp)[1]
+                for j in axes(tmp)[2]
+                    tmp[i,j] = v(in[k][i,j])
+                end
+            end
+            merge!(d,Dict(k => tmp))                
+        else
+            #if it's something else, just put it back
+            merge!(d,Dict(k => in[k]))
+        end
+    end    
+    return NamedTuple(d) #convert back to an NT
+end
 
 
 """ Simulation """
-function simulate!(x0,p,tspan)
-prob = ODEProblem(model!,x0,tspan,p)
-sol = solve(prob,Tsit5(),callback=model_cb)#CallbackSet(model_cb,fsw))
-return convertSol(sol.t,sol.u)
+function simulate!(x0,p,tspan; nruns = 1)    
+    p0 = initModelParams(p,false)
+    prob = ODEProblem(model!,x0,tspan,p0)
+    sol = solve(prob,Tsit5(),callback=model_cb)
+    sol = convertSol(sol.t,sol.u)
+    
+    sols = Vector{typeof(sol)}(undef,nruns)
+    if nruns > 1        
+        ps = Vector{typeof(p0)}(undef,nruns)
+        for n in 1:nruns
+            ps[n] = initModelParams(p,true)
+            new_prob = remake(prob,p=ps[n])
+            new_sol = solve(new_prob,Tsit5(),callback=model_cb)
+            sols[n] = convertSol(new_sol.t,new_sol.u)
+        end
+    end
+    return pushfirst!(sols,sol)
 end
 
 function recursive_sim!(x0,p,tspan,interval)
@@ -69,3 +113,4 @@ function digdeeper(in)
     end
     return NamedTuple(d)
 end
+

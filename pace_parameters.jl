@@ -1,38 +1,54 @@
-using Interpolations
+using Interpolations,Distributions,SatelliteToolbox
+
+struct ModelParameter
+    name
+    value
+    dist
+end
+Base.length(in::ModelParameter) = length(in.value)
 
 """Config"""
 
-p_config = ComponentArray(
+p_config = (
     geomagnetism = true,
     atmosphere = true,
 )
 
 """Mass Properties"""
 
-mass = 1506.27
-inertia = @SMatrix [1529.097 -58.0883 -26.71023
-            -58.0883  1400.682 83.51491
-            -26.71023  83.51491 2320.778]
+mass = ModelParameter("Mass",1506.27,Normal(1506.27,1506.27*0.05/3))
+ixx = ModelParameter("Ixx",1529.097,Normal(1529.097,1529.097*0.1/3))
+iyy = ModelParameter("Iyy",1400.682,Normal(1400.682,1400.682*0.1/3))
+izz = ModelParameter("Izz",2320.778,Normal(2320.778,2320.778*0.1/3))
+ixy = ModelParameter("Ixy",-58.0883,Normal(0,100/3))
+ixz = ModelParameter("Ixz",-26.71023,Normal(0,100/3))
+iyz = ModelParameter("Iyz",83.51491,Normal(0,100/3))
+
+inertia = [
+    ixx ixy ixz
+    ixy  iyy iyz
+    ixz  iyz izz
+    ]
+
 cg =  [-1.311708,     -0.122079,    -0.0302493]
 
-p_body = ComponentArray(
-    J = inertia,
-    invJ = inv(inertia),
+p_body = (
+    J = inertia,    
     mass = mass,
     cg = cg,    
 )
 
 
 
-a1 = @SVector [0.76604,0.64279,0]
-a2 = @SVector [0,0.64279,0.76604]
-a3 = @SVector [-0.76604,0.64279,0]
-a4 = @SVector [0,0.64279,-0.76604]
+a1 = [0.76604,0.64279,0]
+a2 = [0,0.64279,0.76604]
+a3 = [-0.76604,0.64279,0]
+a4 = [0,0.64279,-0.76604]
 a = [a1,a2,a3,a4]
 
 b_to_rw = [a'...;]
 
-p_controller = ComponentArray(
+p_controller = (
     kp = [0.2853, 0.0288, 0.2853],
     kd = [0.7478, 0.2376, 0.7478],  
     ki = [0.0071, 0.0010, 0.0071],
@@ -65,12 +81,12 @@ p_controller = ComponentArray(
         EnableMomMax     = 0   # Flag to select enforcement of wheel momentum magnitude limit (0=DIS, 1=ENA)
   )
 
-wheel_km = SVector{4}(0.077 * ones(4))
-wheel_J = SVector{4}(0.231 * ones(4))
+wheel_km = 0.077 * ones(4)
+wheel_J = 0.231 * ones(4)
 wheel_trq_max = 0.45 * ones(4)
 wheel_momentum_max = 70 * ones(4)
 
-p_rw = ComponentArray(    
+p_rw = (    
     km = wheel_km, #motor constant
     J = wheel_J, #wheel inertia
     a = [a'...;]', #axis of rotation in reference frame, convert to matrix since component arrays can't have arrays of arrays :(  
@@ -81,7 +97,7 @@ p_rw = ComponentArray(
 current = Float64[-450,-405,-360,-315,-270,-225,-180,-90,0,90,180,225,270,315,360,405,450]
 moment =  Float64[-450,-440,-430,-420,-400,-355,-300,-150,0,150,300,355,400,420,430,440,450]
 current_to_moment_curve = LinearInterpolation(current,moment)
-p_mtb = ComponentArray(
+p_mtb = (
     current_to_moment = linear_interpolation(current,moment),
     current_lookup = Float64[-450,-405,-360,-315,-270,-225,-180,-90,0,90,180,225,270,315,360,405,450],
     moment_lookup =  Float64[-450,-440,-430,-420,-400,-355,-300,-150,0,150,300,355,400,420,430,440,450],
@@ -98,13 +114,13 @@ p_mtb = ComponentArray(
     Moment2Current_Intercept = [-0.0440, 0.0090, -0.0220],
 )
 
-p_actuators = ComponentArray(rw = p_rw, mtb = p_mtb)
+p_actuators = (rw = p_rw, mtb = p_mtb)
 
 egm96_model = parse_icgem("EGM96.gfc")
 egm96_coefs = create_gravity_model_coefs(egm96_model)
 egm96_coefs = load_gravity_model(EGM96())
 
-p_gravity = ComponentArray(
+p_gravity = (
     μ = 3.986004418e14,
     R = 6.378137e6,
     J2 =  1.08262668355e-3,
@@ -116,15 +132,15 @@ p_gravity = ComponentArray(
 )
 
 eop_IAU1980 = get_iers_eop()
-p_geomagnetism = ComponentArray(
-    eop_IAU1980 = eop_IAU1980
+p_geomagnetism = (
+    eop_IAU1980 = eop_IAU1980,
 )
 
-p_environments = ComponentArray(
+p_environments = (
     gravity = p_gravity,
     geomagnetism = p_geomagnetism
 )
-p = ComponentArray(    
+p = (    
     config = p_config,
     body = p_body,
     controller = p_controller,    

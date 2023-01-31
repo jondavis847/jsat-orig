@@ -44,14 +44,12 @@ function bodyRotation!(dx, x, p, t)
     ]
 
     dx.body.q = 0.5 * Q * x.body.ω
-    dx.body.Hb = x.body.Te - x.body.Ti - cross(x.body.ω, x.body.Hs)
-    #dx.body.ω = p.body.invJ*(x.body.Te - x.body.Ti - cross(x.body.ω,x.body.H))         
+    dx.body.Hb = x.body.Te - x.body.Ti - cross(x.body.ω, x.body.Hs)    
 end
 
-function bodyRotation_cb!(S)
-    #S.u.body.H = S.p.body.J*S.u.body.ω + S.u.body.Hi     
+function bodyRotation_cb!(S)    
     S.u.body.Hs = S.u.body.Hb + S.u.body.Hi
-    S.u.body.ω = SVector{3}(S.p.body.invJ * S.u.body.Hb)
+    S.u.body.ω = inv(S.p.body.J) * S.u.body.Hb
     if S.u.body.q[4] < 0
         S.u.body.q = -S.u.body.q
     end

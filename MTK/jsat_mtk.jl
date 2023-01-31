@@ -1,4 +1,4 @@
-using ModelingToolkit, DifferentialEquations, LinearAlgebra, Rotations, Plots, IfElse
+using ModelingToolkit, DifferentialEquations, LinearAlgebra, IfElse
 using Symbolics: scalarize
 
 @variables t
@@ -23,41 +23,39 @@ RigidBody
 
 mutable struct RigidBody
     J::Matrix{Float64}
-    θ0::Vector{Float64}
-    ω0::Vector{Float64}    
+    q0::Vector{Float64}
+    ω0::Vector{Float64}        
 end
 
 function make(component::RigidBody)   
-    @variables Te(t)[1:3] = zeros(3) [input = true]
-    @variables Ti(t)[1:3] = zeros(3) [input = true]
-    @variables Hi(t)[1:3] = zeros(3) [input = true]
-    @variables θ(t)[1:3] = component.θ0 [output = true]
-    @variables ω(t)[1:3] = component.ω0 [output = true]
-    Te,Ti,Hi,θ,ω = scalarize.([Te,Ti,Hi,θ,ω])            
+    x = [
+    @variables Te(t)[1:3] [input = true]
+    @variables Ti(t)[1:3] [input = true]
+    @variables Hi(t)[1:3] [input = true]
+    @variables q(t)[1:4] = component.q0 [output = true]
+    @variables ω(t)[1:3] = component.ω0 [output = true]    
+    ]
+    
+    p = [
+        @parameters J[1:3,1:3] = component.J
+        @parameters invJ[1:3,1:3] = inv(component.J)
+    ]
 
-    J = scalarize(only(@parameters J[1:3,1:3] = component.I))
+    Q = [
+        q[4] -q[3] q[2]
+        q[3] q[4] -q[1]
+        -q[2] q[1] q[4]
+        -q[1] -q[2] -q[3]
+    ]
 
-    H = J*ω + Hi
-    eqs = [
-        D.(θ) .~ ω
-        D.(ω) .~ inv(J) * (Te - Ti - ω×H)        
-    ]    
-    return ODESystem(eqs,t,name=:rb)
-end
+    ω = invJ*Hb
+    Hs = Hb + Hi
 
-function makeSimple(component::RigidBody)
-    @variables T(t)[1:3] = zeros(3) [input = true]
-    @variables θ(t)[1:3] = component.θ0
-    @variables ω(t)[1:3] = component.ω0 [output = true]
-    T,θ,ω = scalarize.([T,θ,ω])            
-    J = scalarize(only(@parameters J[1:3,1:3] = component.J))
-
-    H = J*ω
-    eqs = [
-        D.(θ) .~ ω
-        D.(ω) .~ inv(J) * (T-ω×H)        
-    ]    
-    return ODESystem(eqs,t,name=:rb)
+    eqs = scalarize(scalarize([
+        D.(q) .~ 0.5 * Q * ω        
+        D.(Hb) .~ Te - Ti - ω×Hs        
+    ]))    
+    return ODESystem([eqs...;],t,name=:rb)
 end
     
 """
@@ -164,17 +162,22 @@ function step(;name,times,durations,values)
     return ODESystem(eqs,t,name=name)
 end
 
-function controller(;name,samplerate,kd=1,kp=1)
-    #x = @variables θ(t)[1:3] [input = true] ω(t)[1:3]=zeros(3) [input = true] u(t)[1:3]=zeros(3) [output = true]        
-    x = @variables ω(t)[1:3]=zeros(3) [input = true] u(t)[1:3]=zeros(3) [output = true]        
-    p = @parameters kd=kd kp=kp
-    
-    ω_ref = zeros(3)
-    θ_ref = zeros(3)
-    U = DiscreteUpdate(t; dt = samplerate)
-    eqs = zeros(3).~ U.(u) - kd*(ω_ref-ω)# + kp*(θ_ref - θ)
-    
+function controller(;name,samplerate,kd=1,kp=1)    
+    x = @variables u(t)[1:3]=zeros(3) [output = true]            
+    eqs = D.(u) .~ zeros(3)    
     return ODESystem(scalarize(eqs),t,[x...;],p,name=name)
+end
+
+""" Callbacks """
+
+function modelCallback!(S)    
+    fsw!(S)
+end
+
+function sensors!(S)
+end
+
+function fsw!(S)
 end
 
 """
@@ -190,9 +193,9 @@ end
 """
 Example systems
 """
-#=
+
 #Make the Rigid Body
-rb = make(RigidBody(1000*I(3),zeros(3),zeros(3)))
+rb = make(RigidBody(1000*I(3),[0,0,0,1],zeros(3)))
 
 #Make the Reaction Wheels
 r1 = ReactionWheel(0.25, 1, [ 1, 0, 0], 20)
@@ -209,15 +212,12 @@ rw = make([r1,r2,r3])
         ], t, systems = [thr, thr_command])
 
 @named fake_thrusters = nStep(times = [Inf,Inf,Inf], durations = ones(3),values = ones(3)) 
-
+=#
 # Connect components to Rigid Body
-
-@named sys = ODESystem([
-    connect(rw_sys.ReactionWheels.output_T, rb.input_Ti)
-    connect(rw_sys.ReactionWheels.output_H, rb.input_Hi)
-    connect(fake_thrusters.output_u, rb.input_T)
-    ],t,systems = [rw_sys,fake_thrusters,rb])
+eqs = scalarize([
+    rw.T .~ m.Ti,
+    rw.H .~ m.Hi
+    ])
+@named sys = ODESystem([eqs...;],t,systems = [rb,rw])
 
 sys_s = structural_simplify(sys)
-=#
-=#
