@@ -1,65 +1,89 @@
-using LinearAlgebra,StaticArrays
-#inverse quaternion,  btime 132.775 ns (3 allocations: 288 bytes)
-qinv(q) = q .* SA[-1, -1, -1, 1] / norm(q)^2
+using LinearAlgebra, StaticArrays, Rotations
+#inverse quaternion,  if q is SVector, btime 31.584 ns (1 allocations: 48 bytes)
+qinv(q) = normalize(q .* SVector{4,Float64}(-1, -1, -1, 1))# / norm(q)^2
 
-#quaternion to rotation vector,  #btime 197.586 ns (4 allocations: 320 bytes)
-qtov(q) = 2 * atan(norm(q[1:3]), q[4]) * normalize(q[1:3])
+#quaternion to rotation vector,  #btime 109.594 ns (2 allocations: 160 bytes)
+qtov(q) = 2 * acos(q[4]) * normalize(view(q,Base.OneTo(3)))
 
 #rotation matrix to quaternion
-function atoq(A) # btime 548.634 ns (19 allocations: 928 bytes)   
+function atoq(A) # if A is a SMatrix btime 43.016 ns (1 allocations: 48 bytes)   
 
-    e1 = @SVector [0, 1.0 + A[1, 1] - A[2, 2] - A[3, 3]]
-    e2 = @SVector [0, 1.0 - A[1, 1] + A[2, 2] - A[3, 3]]
-    e3 = @SVector [0, 1.0 - A[1, 1] - A[2, 2] + A[3, 3]]
-    e4 = @SVector [0, 1.0 + A[1, 1] + A[2, 2] + A[3, 3]]
-    tmp = @SVector [sqrt(maximum(e1)),
-        sqrt(maximum(e2)),
-        sqrt(maximum(e3)),
-        sqrt(maximum(e4))]
-
-    f1 = abs.(tmp)
-    qmax = maximum(f1)
-    if f1 == qmax
-        q1 = 0.5 * tmp[1]
-        rq = 0.25 / q1
-        q = @SVector [
-            q1,
-            rq * (A[1, 2] + A[2, 1]),
-            rq * (A[1, 3] + A[3, 1]),
-            rq * (A[2, 3] - A[3, 2]),
-        ]
-    elseif f2 == qmax
-        q2 = 0.5 * tmp[2]
-        rq = 0.25 / q2
-        q = @SVector [
-            rq * (A[1, 2] + A[2, 1]),
-            q2,
-            rq * (A[2, 3] + A[3, 2]),
-            rq * (A[3, 1] - A[1, 3])
-        ]
-    elseif f3 == qmax
-        q3 = 0.5 * tmp[3]
-        rq = 0.25 / q3
-        q = @SVector [
-            rq * (A[3, 1] + A[1, 3]),
-            rq * (A[3, 2] + A[2, 3]),
-            q3,
-            rq * (A[1, 2] - A[2, 1])
-        ]
-    else
-        q4 = 0.5 * tmp[4]
-        rq = 0.25 / q4
-        q = @SVector [
-            rq * (A[2, 3] - A[3, 2]),
-            rq * (A[3, 1] - A[1, 3]),
-            rq * (A[1, 2] - A[2, 1]),
-            q4
-        ]
+    imax = findmax(abs.(SVector{4,Float64}(
+        A[1, 1], A[2, 2], A[3, 3], tr(A)
+    )))[2]
+    if imax == 1
+        q = SVector{4,Float64}(
+            1 + 2 * A[1, 1] - tr(A),
+            A[1, 2] + A[2, 1],
+            A[1, 3] + A[3, 1],
+            A[2, 3] - A[3, 2]
+        )
+    elseif imax == 2
+        q = SVector{4,Float64}(
+            A[2, 1] + A[1, 2],
+            1 + 2 * A[2, 2] - tr(A),
+            A[2, 3] + A[3, 2],
+            A[3, 1] - A[1, 3]
+        )
+    elseif imax == 3
+        q = SVector{4,Float64}(
+            A[3, 1] + A[1, 3],
+            A[3, 2] + A[2, 3],
+            1 + 2 * A[3, 3] - tr(A),
+            A[1, 2] - A[2, 1]
+        )
+    elseif imax == 4
+        q = SVector{4,Float64}(
+            A[2, 3] - A[3, 2],
+            A[3, 1] - A[1, 3],
+            A[1, 2] - A[2, 1],
+            1 + tr(A)
+        )
     end
 
+#=
+    
+    e1 = SVector{2,Float32}(0, 1.0 + A[1, 1] - A[2, 2] - A[3, 3])
+    e2 = SVector{2,Float32}(0, 1.0 - A[1, 1] + A[2, 2] - A[3, 3])
+    e3 = SVector{2,Float32}(0, 1.0 - A[1, 1] - A[2, 2] + A[3, 3])
+    e4 = SVector{2,Float32}(0, 1.0 + A[1, 1] + A[2, 2] + A[3, 3])
+    q = MArray{Tuple{4},Float64}(sqrt(maximum(e1)),
+        sqrt(maximum(e2)),
+        sqrt(maximum(e3)),
+        sqrt(maximum(e4)))
+
+    qmax = maximum(abs.(q))
+
+    if abs(q[1]) == qmax
+        q[1] = 0.5 * q[1]
+        rq = 0.25 / q[1]
+        q[2] = rq * (A[1, 2] + A[2, 1])
+        q[3] = rq * (A[1, 3] + A[3, 1])
+        q[4] = rq * (A[2, 3] - A[3, 2])
+    elseif abs(q[2]) == qmax
+        q[2] = 0.5 * q[2]
+        rq = 0.25 / q[2]
+        q[1] = rq * (A[1, 2] + A[2, 1])
+        q[3] = rq * (A[2, 3] + A[3, 2])
+        q[4] = rq * (A[3, 1] - A[1, 3])
+    elseif abs(q[3]) == qmax
+        q[3] = 0.5 * q[3]
+        rq = 0.25 / q[3]
+        q[1] = rq * (A[3, 1] + A[1, 3])
+        q[2] = rq * (A[3, 2] + A[2, 3])
+        q[3] = rq * (A[1, 2] - A[2, 1])
+    else
+        q[4] = 0.5 * q[4]
+        rq = 0.25 / q[4]
+        q[1] = rq * (A[2, 3] - A[3, 2])
+        q[2] = rq * (A[3, 1] - A[1, 3])
+        q[3] = rq * (A[1, 2] - A[2, 1])
+    end
+    =#
     # Normalize quaternion output
     return normalize(q)
 end
+
 
 function qtoe(q)
     # returns the euler angles (in radians) corresponding to a quaternions
@@ -123,38 +147,11 @@ function qmult(q_A2B, q_B2C) # 162.533 ns (3 allocations: 288 bytes)
     return q_A2C
 end # qmult()
 
-function qvrot(q,v,Transform = true)
-    #can be transform or rotation
-    #transform: physical orientation is constant, but represented in different frames
-    #rotation: physical orientation is changing, represented in the same frame
-    vmag = norm(v)
-    u_v = normalize(v)    
-    v_aug = append!(u_v,0)
-    if Transform
-        q = qinv(q)
-    end
-
-    q = qmult(q,qmult(q,v_aug))    
-    return vmag*view(q,1:3)
-end
-
+qvrot(q, v, transform = true) = transform ? inv(QuatRotation(q[[4,1,2,3]]))*v : QuatRotation(q[[4,1,2,3]])*v
+    
 function getsol(sol, names...)
     return map(sol.u) do u
         reduce(Base.maybeview, names; init=u)
     end
-end
-
-function limitLowerUpper!(val, lower, upper)
-    for i in eachindex(val)
-        if val[i] > upper[i]
-            val[i] = upper[i]
-        elseif val[i] < lower[i]
-            val[i] = lower[i]
-        end
-
-        #val[i] = val[i] > upper[i] ? upper[i] : val[i]
-        #val[i] = val[i] < lower[i] ? lower[i] : val[i]
-    end
-    return val
 end
 
