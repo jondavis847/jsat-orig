@@ -6,13 +6,10 @@ includet("orbit.jl")
 function environments_cb!(S)
     #gravity_cb!(integrator)
     #geomagnetism_cb!(integrator)
-    stb_gravity_cb!(S)
-    if S.p.config.geomagnetism
-        stb_geomagnetism_cb!(S)
-    end
-    if S.p.config.atmosphere
-        stb_atmosphere_cb!(S)
-    end
+    stb_gravity_cb!(S)    
+    stb_geomagnetism_cb!(S)    
+    stb_atmosphere_cb!(S)
+    gravityGradient_cb!(S)    
     return nothing
 end
 
@@ -48,4 +45,16 @@ Base.length(in::EOPData_IAU1980) = 0
 function stb_atmosphere_cb!(S)
     S.u.environments.atmosphere.ρ = expatmosphere(S.u.body.lla[3])
     return nothing
+end
+
+""" Gravity Gradient """
+function gravityGradient_cb!(S)
+    mu = 3.986004418e14 #Earth gravitational parameter, [m^3/s^2]
+    n2 = mu/norm(S.u.body.r_ecef)^3 # square of orbital rate, [rad^2/s^2]
+    a3 = -normalize(S.u.body.r_ecef) # LVLH nadir
+    # convert a3 in BCS
+    R_EcefToBcs = qtoa(S.u.body.q) * S.u.body.eci_to_ecef'
+    a3_bcs = R_EcefToBcs*a3    
+    S.u.environments.gravity.gradient_torque_b = 3*n2*cross(a3_bcs, S.p.body.J*a3_bcs)
+    S.u.body.Te = S.u.body.Te + S.u.environments.gravity.gradient_torque_b
 end

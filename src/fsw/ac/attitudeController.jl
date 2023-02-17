@@ -2,12 +2,12 @@ function attitudeController!(S)
     # Attitude controller to stabilize 3-axis of the spacecraft                       
     # Control error
 
-    S.u.fsw.ac.ctrl.attitude_error = qtov(qmult(qinv(S.u.fsw.ac.tgt.q_ref), S.u.body.q))#S.u.fsw.ac.ad.q_i2b))
+    S.u.fsw.ac.ctrl.attitude_error = qtov(qmult(qinv(S.u.fsw.ac.tgt.q_ref), S.u.fsw.ac.ad.q_i2b))#S.u.fsw.ac.ad.q_i2b))
     if norm(S.u.fsw.ac.ctrl.attitude_error) > pi # rotate in minimum-course direction
-        S.u.fsw.ac.ctrl.attitude_error = qtov(qmult(qinv(-S.u.fsw.ac.tgt.q_ref), S.u.body.q))#S.u.fsw.ac.ad.q_i2b))
+        S.u.fsw.ac.ctrl.attitude_error = qtov(qmult(qinv(-S.u.fsw.ac.tgt.q_ref), S.u.fsw.ac.ad.q_i2b))#S.u.fsw.ac.ad.q_i2b))
     end
     #S.u.fsw.ac.ctrl.rate_error = S.u.fsw.ac.ad.ω_i2b - S.u.fsw.ac.tgt.ω_ref
-    S.u.fsw.ac.ctrl.rate_error = S.u.body.ω - S.u.fsw.ac.tgt.ω_ref
+    S.u.fsw.ac.ctrl.rate_error = S.u.fsw.ac.ad.ω_i2b - S.u.fsw.ac.tgt.ω_ref
     S.u.fsw.ac.ctrl.integral_error = S.u.fsw.ac.ctrl.integral_error + S.u.fsw.ac.ctrl.attitude_error * 0.1 # hardcoded for 10Hz processing
 
     # set control attitude error and integral of control attitude

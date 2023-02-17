@@ -20,12 +20,22 @@ sun_position_eci = mod_to_j2000 * sunMOD
 sun_vector_eci = normalize(sun_position_eci - r0)
 sun_vector_b = qvrot(q,sun_vector_eci)
 
+moonMOD = moon_position_i(epoch)
+mod_to_j2000 = r_eci_to_eci(MOD(),J2000(),epoch)
+moon_position_eci = mod_to_j2000 * moonMOD
+moon_vector_eci = normalize(moon_position_eci - r0)
+moon_vector_b = qvrot(q,moon_vector_eci)
+
+
 x_orbit = ComponentArray(
     epoch =  Float64(epoch),
     epoch_prev = Float64(epoch-0.1/86400.0),
     sun_position_eci = SVector{3,Float64}(sun_position_eci),
     sun_vector_eci = SVector{3,Float64}(sun_vector_eci),
-    sun_vector_b = SVector{3,Float64}(sun_vector_b)
+    sun_vector_b = SVector{3,Float64}(sun_vector_b),
+    moon_position_eci = SVector{3,Float64}(moon_position_eci),
+    moon_vector_eci = SVector{3,Float64}(moon_vector_eci),
+    moon_vector_b = SVector{3,Float64}(moon_vector_b),
 )
 
 #lla = Vector{Float64}(undef,3)
@@ -48,6 +58,7 @@ x_body = ComponentArray(
     r_ecef = SVector{3,Float64}(r_ecef),
     lla = SVector{3,Float64}(lla),
     v_eci = SVector{3,Float64}(v0),
+    v_ecef = SVector{3,Float64}(eci_to_ecef*v0),
     rmag = Float64(rmag0)
 )
     
@@ -94,6 +105,7 @@ x_tgt = ComponentArray(
     R_eci_to_brf = SMatrix{3,3,Float64}([0.34432159624611963 0.23957867587376439 -0.9077690765966298; -0.2859308764863784 0.9477203401333472 0.14166753604571566; 0.8941549522412857 0.2111006335425908 0.39487142704974343]),
     q_ref = q_nadir,
     q_nadir =  q_nadir,
+    q_yaw_steering = SA[0,0,0,1],
     ω_ref = ω,
     torque_oci_ffwd = SVector{3,Float64}(zeros(3))
 )
@@ -109,7 +121,13 @@ x_ac = ComponentArray(
 x_output_rw = ComponentArray(
     torque_command = SVector{4,Float64}(zeros(4)),
     torque_command_lim = SVector{4,Float64}(zeros(4)),
-    current_command = SVector{4,Float64}(zeros(4))
+    current_command = SVector{4,Float64}(zeros(4)),
+    rwMomRdTq = SVector{4,Float64}(zeros(4)),
+    momAdj = Float64(0),
+    prevMomAdj = Float64(0),
+    posMomAdj =  Float64(0),
+    negMomAdj = Float64(0),
+    shiftDirCnt = Int64(0),
 )
 x_output = ComponentArray(
     rw = x_output_rw,
@@ -140,7 +158,10 @@ x_actuators = ComponentArray(
     mtb = x_mtb
 )
 
-x_gravity = ComponentArray(a = g)
+x_gravity = ComponentArray(
+    a = g,
+    gradient_torque_b = SVector{3,Float64}(zeros(3)),
+    )
 x_geomagnetism = ComponentArray(
     B_ecef = SVector{3,Float64}(zeros(3)),
     B_eci = SVector{3,Float64}(zeros(3)),
@@ -164,7 +185,7 @@ x0 = ComponentArray(
 #used for testing and benchmarking callback functions in REPL
 S = ComponentArray(
     u = x0,
-    p = p
+    p = initModelParams(p)
 )
 """ ODE """
 #sol = simulate(x0,p,(0,1000))

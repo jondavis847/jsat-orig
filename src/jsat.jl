@@ -10,6 +10,24 @@ includet("orbit.jl")
 includet("actuators.jl")
 includet("fsw\\fsw.jl")
 
+
+""" Interface """
+
+mutable struct Spacecraft
+    p::Parameters
+    x::States
+end
+
+mutable struct Parameters
+end
+
+mutable struct States
+    t0::DateTime
+    r0::Vector{Float64}
+    v0::Vector{Float64}
+    
+end
+
 lograte = 0.1
 
 """ Model """
@@ -89,7 +107,7 @@ function output_func(sol, i)
     sol = convertSol(sol.t, sol.u)
     return (sol, false)
 end
-#=
+
 function recursive_sim(prob, tspan, interval)
     n = (tspan[2] - tspan[1]) / interval
     t = Float64[tspan[1]]
@@ -108,7 +126,7 @@ function recursive_sim(prob, tspan, interval)
     end
     return convertSol(t, u)
 end
-=#
+
 
 function convertSol(t, u)
     u_out = digdeeper(u)

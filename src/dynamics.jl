@@ -39,6 +39,7 @@ function bodyTranslation_cb!(S)
 
     S.u.body.eci_to_ecef = r_eci_to_ecef(J2000(), ITRF(), S.u.orbit.epoch, S.p.environments.geomagnetism.eop_IAU1980)
     S.u.body.r_ecef = S.u.body.eci_to_ecef * S.u.body.r_eci
+    S.u.body.v_ecef = S.u.body.eci_to_ecef * S.u.body.v_eci
     S.u.body.rmag = norm(S.u.body.r_eci)
     #S.u.body.lla = ecef_to_lla(S.u.body.r_ecef)
     S.u.body.lla .= ecef_to_geodetic(S.u.body.r_ecef)
@@ -57,6 +58,7 @@ function bodyRotation!(dx, x, p, t)
         -q[1] -q[2] -q[3]
     ]
 
+    
     dx.body.q = 0.5 * Q * x.body.ω
     dx.body.Hb = x.body.Te - x.body.Ti - cross(x.body.ω, x.body.Hs)
     return nothing
@@ -69,7 +71,7 @@ function bodyRotation_cb!(S)
         S.u.body.q = -S.u.body.q
     end
 
-    S.u.body.Te = S.u.actuators.mtb.Tb
+    S.u.body.Te = S.u.actuators.mtb.Tb + S.u.environments.gravity.gradient_torque_b
     S.u.body.Ti = sum(S.u.actuators.rw.Tb, dims=2)
     S.u.body.Hi = sum(S.u.actuators.rw.Hb, dims=2)
     return nothing

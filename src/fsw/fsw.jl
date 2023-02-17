@@ -17,6 +17,7 @@ end
 function ac!(integrator)
     acMassMomCalc!(integrator)
     selectLogic!(integrator)
+    yawSteering!(integrator)
     geodeticNadir!(integrator)
     tgtReference!(integrator)
     attitudeController!(integrator)

@@ -16,6 +16,7 @@ end
 
 function orbit_cb!(S)
     sunVector!(S)
+    moonVector!(S)
 end
 
 function sunVector!(S)
@@ -24,4 +25,12 @@ function sunVector!(S)
     S.u.orbit.sun_position_eci = mod_to_j2000 * sunMOD
     S.u.orbit.sun_vector_eci = normalize(S.u.orbit.sun_position_eci - S.u.body.r_eci)
     S.u.orbit.sun_vector_b = qvrot(S.u.body.q,S.u.orbit.sun_vector_eci)
+end
+
+function moonVector!(S)
+    moonMOD = moon_position_i(S.u.orbit.epoch)
+    mod_to_j2000 = r_eci_to_eci(MOD(),J2000(),S.u.orbit.epoch)
+    S.u.orbit.moon_position_eci = mod_to_j2000 * moonMOD
+    S.u.orbit.moon_vector_eci = normalize(S.u.orbit.moon_position_eci - S.u.body.r_eci)
+    S.u.orbit.moon_vector_b = qvrot(S.u.body.q,S.u.orbit.moon_vector_eci)
 end

@@ -1,12 +1,14 @@
 using ModelingToolkit, DifferentialEquations
 
-@parameters t a b c d
-@variables x(t) y(t)
-δ = Differential(t)
-Δ = Difference(t; dt = 0.1)
-U = DiscreteUpdate(t; dt = 0.1)
-eqs = [δ(x) ~ a * x - b * x * y
-       δ(y) ~ -c * y + d * x * y
-       Δ(x) ~ y
-       U(y) ~ x + 1]
-@named de = ODESystem(eqs, t, [x, y], [a, b, c, d])
+@variables t x(t)=0 y(t)=0
+D = Differential(t)
+U = DiscreteUpdate(t; dt = 1)
+
+eqs = [D(x) ~ 1
+       D(y) ~ 0
+       y ~ Sample(t,1)(x)]
+
+@named de = ODESystem(eqs,t)
+sys = structural_simplify(de)
+prob = ODEProblem(sys,[],(0,10))
+sol = solve(prob)

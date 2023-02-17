@@ -16,9 +16,10 @@ function geodeticNadir!(S)
     A1 = normalize(cross(A2, A3))
     # attitude matrix
     R_EciToBrf = [A1 A2 A3]'
-    
+
     S.u.fsw.ac.tgt.r_sc_to_site_eci = r_ScToSite_Eci
     S.u.fsw.ac.tgt.R_eci_to_brf = R_EciToBrf
-    S.u.fsw.ac.tgt.q_nadir= atoq(R_EciToBrf)
+    S.u.fsw.ac.tgt.q_nadir = qmult(atoq(R_EciToBrf), S.u.fsw.ac.tgt.q_yaw_steering)
+
     return nothing
 end
