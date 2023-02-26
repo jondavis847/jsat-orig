@@ -15,7 +15,7 @@ function reactionWheelTorqueCommand!(S)
         end
     end
     S.u.fsw.output.rw.torque_command_lim = RwCmdTqLim
-    S.u.fsw.output.rw.current_command  = RwCmdTqLim ./ p.actuators.rw.km
+    S.u.fsw.output.rw.current_command  = RwCmdTqLim ./ S.p.actuators.rw.km
     #cmdCnt = uint16(CmdCurrent * 32768 / 7 + 32768))
     return nothing
 end

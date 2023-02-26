@@ -1,3 +1,5 @@
+using StaticArrays
+
 """ True Dynamics """
 function eom!(dx, x, p, t)
     bodyTranslation!(dx, x, p, t)
@@ -8,12 +10,6 @@ end
 function eom_cb!(integrator)
     bodyRotation_cb!(integrator)
     bodyTranslation_cb!(integrator)
-    return nothing
-end
-
-function time_cb!(S)
-    S.u.orbit.epoch_prev = S.u.orbit.epoch
-    S.u.orbit.epoch = S.u.orbit.epoch + (S.t - S.tprev) / 86400.0
     return nothing
 end
 
@@ -60,13 +56,15 @@ function bodyRotation!(dx, x, p, t)
 
     
     dx.body.q = 0.5 * Q * x.body.ω
-    dx.body.Hb = x.body.Te - x.body.Ti - cross(x.body.ω, x.body.Hs)
+    #dx.body.Hb = x.body.Te - x.body.Ti - cross(x.body.ω, x.body.Hs)
+    dx.body.ω = inv(real(p.body.J))*(x.body.Te - x.body.Ti - cross(x.body.ω, x.body.Hs))
     return nothing
 end
 
 function bodyRotation_cb!(S)
     S.u.body.Hs = S.u.body.Hb + S.u.body.Hi
-    S.u.body.ω = inv(S.p.body.J) * S.u.body.Hb
+    #S.u.body.ω = inv(S.p.body.J) * S.u.body.Hb
+    S.u.body.Hb = S.p.body.J * S.u.body.ω
     if S.u.body.q[4] < 0
         S.u.body.q = -S.u.body.q
     end

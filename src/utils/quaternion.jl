@@ -1,4 +1,5 @@
 using LinearAlgebra, StaticArrays, Rotations
+
 #inverse quaternion,  if q is SVector, btime 31.584 ns (1 allocations: 48 bytes)
 qinv(q) = normalize(q .* SVector{4,Float64}(-1, -1, -1, 1))# / norm(q)^2
 

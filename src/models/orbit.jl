@@ -15,9 +15,17 @@ function decyear(datetime)
 end
 
 function orbit_cb!(S)
+    time!(S)
     sunVector!(S)
     moonVector!(S)
 end
+
+function time!(S)
+    S.u.orbit.epoch_prev = S.u.orbit.epoch
+    S.u.orbit.epoch = S.u.orbit.epoch + (S.t - S.tprev) / 86400.0
+    return nothing
+end
+
 
 function sunVector!(S)
     sunMOD = sun_position_i(S.u.orbit.epoch)

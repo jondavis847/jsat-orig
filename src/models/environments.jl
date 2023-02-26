@@ -1,7 +1,9 @@
-using UnPack, SatelliteToolbox
 includet("orbit.jl")
 
 """Environments """
+function environments!(dx,x,p,t)
+    return nothing
+end
 
 function environments_cb!(S)
     #gravity_cb!(integrator)
