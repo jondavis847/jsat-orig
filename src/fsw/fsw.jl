@@ -15,6 +15,7 @@ function fsw!(integrator)
 end
 
 function ac!(integrator)
+    commands!(integrator)
     acMassMomCalc!(integrator)
     selectLogic!(integrator)
     yawSteering!(integrator)
@@ -28,4 +29,29 @@ function output!(integrator) #formally known as do, but conflicts with julia do 
     reactionWheelTorqueCommand!(integrator)
     mtbTorqueCommand!(integrator)
     return nothing
+end
+
+mutable struct Command
+    f!
+    t_start::Float64 #seconds
+    duration::Float64 #seconds
+    occurred::Bool
+    occurring::Bool
+    Command(f,t_start,duration) = new(f,t_start,duration,false,false)
+end
+
+Base.length(::Command) = 1
+
+function commands!(S)
+    for c in S.p.fsw.commands            
+        if (S.t >= c.t_start) && !c.occurred                  
+            if c.occurring && (S.t >= (c.t_start + c.duration))                
+                c.occurred = true                
+                c.occurring = false
+                continue
+            end
+            c.occurring = true
+            c.f!(S)
+        end                
+    end
 end

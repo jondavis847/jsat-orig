@@ -3,7 +3,7 @@ using Interpolations, Distributions, SatelliteToolbox,ComponentArrays,LinearAlge
 
 function pace_parameters()
 """Config"""
-p_config = ComponentArray(
+p_config = (
     geomagnetism=true,
     atmosphere=true,    
     montecarlo = false,
@@ -37,7 +37,7 @@ inertia = DispersedValue(
 cg = DispersedValue([-1.311708,-0.122079,-0.0302493], 
     Normal.([-1.311708,-0.122079,-0.0302493],abs.([-1.311708,-0.122079,-0.0302493]*0.1/3)))
 
-p_body = ComponentArray(
+p_body = (
     J=inertia,
     mass=mass,
     cg=cg,
@@ -51,23 +51,23 @@ a = [a1, a2, a3, a4]
 
 b_to_rw = [a'...;]
 
-css_detect = ComponentArray(
+css_detect = (
     no_css=Int64(0),
     one_css=Int64(1),
     two_css=Int64(2),
     many_css=Int64(3)
 )
-p_sun = ComponentArray(
+p_sun = (
     css_detect=css_detect,
     sun_vector_desired=SVector{3,Float64}(0, 0, -1),
     rates_desired=SVector{3,Float64}(zeros(3))
 )
 
-p_ad = ComponentArray(
+p_ad = (
     sun=p_sun,
 )
 
-p_ctrl = ComponentArray(
+p_ctrl = (
     Kd_RN=SVector{3,Float64}([0.7000, 0.5372, 0.7000]),
     Kp_SS=SVector{3,Float64}(0.001 * ones(3)),
     Kd_SS=SVector{3,Float64}(0.05 * ones(3)),
@@ -98,7 +98,7 @@ p_ctrl = ComponentArray(
     refrate=SVector{3,Float64}([0, -0.0011, 0]),
 )
 
-gnc_mode = ComponentArray(
+gnc_mode = (
     LaunchMode=0,
     SunSafe=1,
     RateNull=2,
@@ -109,14 +109,14 @@ gnc_mode = ComponentArray(
     DeltaH=7,
 )
 
-p_logic = ComponentArray(
+p_logic = (
     gnc_mode=gnc_mode,
 )
 
-p_tgt = ComponentArray(
+p_tgt = (
     orbital_rate=SVector{3,Float64}(0, -0.0011, 0),
 )
-p_ac = ComponentArray(
+p_ac = (
     ad=p_ad,
     ctrl=p_ctrl,
     logic=p_logic,
@@ -128,7 +128,7 @@ wheel_J = 0.231 * ones(4)
 wheel_trq_max = 0.40 * ones(4)
 wheel_momentum_max = 70 * ones(4)
 
-p_output_rw = ComponentArray(
+p_output_rw = (
     km=SVector{4,Float64}(wheel_km), #motor constant
     J=SVector{4,Float64}(wheel_J), #wheel inertia
     WhTqMax=wheel_trq_max,   # Max wheel torque (N*m)
@@ -158,17 +158,19 @@ p_output_rw = ComponentArray(
     EnableMomMax=0,   # Flag to select enforcement of wheel momentum magnitude limit (0=DIS, 1=ENA)
 )
 
-p_output = ComponentArray(
+p_output = (
     rw=p_output_rw,
 )
 
-p_fsw = ComponentArray(
+p_commands = [Command((S->return),0,0)]
+p_fsw = (
     ac=p_ac,
     output=p_output,
+    commands = p_commands,
 )
 
 
-p_rw = ComponentArray(
+p_rw = (
     km=DispersedValue(wheel_km, Normal.(wheel_km,0.05.*wheel_km./3)), #motor constant
     J=DispersedValue(wheel_J, Normal.(wheel_J,0.05.*wheel_J./3)), #wheel inertia
     a=SMatrix{3,4,Float64}(hcat(a...)), #axis of rotation in reference frame, convert to matrix since component arrays can't have arrays of arrays :(       
@@ -195,7 +197,7 @@ p_rw = ComponentArray(
 
 current = Float64[-450, -405, -360, -315, -270, -225, -180, -90, 0, 90, 180, 225, 270, 315, 360, 405, 450]
 moment = Float64[-450, -440, -430, -420, -400, -355, -300, -150, 0, 150, 300, 355, 400, 420, 430, 440, 450]
-p_mtb = ComponentArray(
+p_mtb = (
     current_to_moment=linear_interpolation(current, moment),
     current_lookup=Float64[-450, -405, -360, -315, -270, -225, -180, -90, 0, 90, 180, 225, 270, 315, 360, 405, 450],
     moment_lookup=Float64[-450, -440, -430, -420, -400, -355, -300, -150, 0, 150, 300, 355, 400, 420, 430, 440, 450],
@@ -212,26 +214,26 @@ p_mtb = ComponentArray(
     Moment2Current_Intercept=[-0.0440, 0.0090, -0.0220],
 )
 
-p_actuators = ComponentArray(rw=p_rw, mtb=p_mtb)
+p_actuators = (rw=p_rw, mtb=p_mtb)
 
 egm96_model = parse_icgem("EGM96.gfc")
 egm96_coefs = create_gravity_model_coefs(egm96_model)
 egm96_coefs = load_gravity_model(EGM96())
 
-p_gravity = ComponentArray(
+p_gravity = (
     egm96_coefs=egm96_coefs,
 )
 
 eop_IAU1980 = get_iers_eop()
-p_geomagnetism = ComponentArray(
+p_geomagnetism = (
     eop_IAU1980=eop_IAU1980,
 )
 
-p_environments = ComponentArray(
+p_environments = (
     gravity=p_gravity,
     geomagnetism=p_geomagnetism
 )
-p = ComponentArray(
+p = (
     config=p_config,
     body=p_body,
     fsw=p_fsw,

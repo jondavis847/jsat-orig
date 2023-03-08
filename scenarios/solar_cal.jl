@@ -2,9 +2,8 @@ includet("..\\src\\jsat.jl")
 includet("..\\pace_parameters.jl")
 
 p = pace_parameters()
-
 x0 = InitialConditions(
-    Mode = NominalValue(p.fsw.ac.logic.gnc_mode.LaunchMode),
+    Mode = NominalValue(p.fsw.ac.logic.gnc_mode.RateNull),
     t = NominalValue(datetime2julian(DateTime(2024,1,9,6,43,12))),
     r_eci = NominalValue([-3.929273771183811e6,5.71264018383781e6,1.3119944637514637e6]),
     v_eci = NominalValue([84.55513412044282,1749.4937754157777,-7311.912202615174]),
@@ -13,4 +12,4 @@ x0 = InitialConditions(
     rwa_ω = NominalValue(zeros(4))
 )
 
-push!(p.fsw.commands,Command((S->S.u.fsw.ac.logic.gnc_mode = S.p.fsw.ac.logic.gnc_mode.RateNull),45+13,0))
+#sol = simulate(x0,p,(0,1000))

@@ -74,4 +74,3 @@ function mtb_cb!(S)
     S.u.actuators.mtb.Tb = cross(S.u.actuators.mtb.Mb, S.u.environments.geomagnetism.B_b)
     return nothing
 end
-

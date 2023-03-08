@@ -48,12 +48,12 @@ lograte = 0.1
 model_cb = PeriodicCallback(model_cb!, lograte, save_positions=(false, false))
 
 function initModelValues(in, MC=false)
+    T = Base.typename(typeof(in)).wrapper
     d = Dict() #initialize output
     v(x::NominalValue) = x.value
-    v(x::DispersedValue) = !MC ? x.value : rand.(x.dist)
-
+    v(x::DispersedValue) = !MC ? x.value : rand.(x.dist)    
     for k in keys(in)
-        if in[k] isa ComponentArray
+        if in[k] isa T
             # if it's another CA, dig deeper
             merge!(d, Dict(k => initModelValues(in[k], MC)))
         elseif in[k] isa ModelValue
@@ -63,9 +63,7 @@ function initModelValues(in, MC=false)
             merge!(d, Dict(k => in[k]))
         end
     end
-    c = ComponentArray(d) #convert back to a CA
-
-    return c
+    return T(d)
 end
 
 function defineModel(ic)
@@ -248,8 +246,7 @@ end
 function initModel(x, p)    
     x0 = initModelValues(x,p.config.montecarlo)
     p0 = initModelValues(p,p.config.montecarlo)
-    
     S = (u=x0, p=p0, t = 0, tprev = 0)
     model_cb!(S)
-    (x0, p0) = S
+    return S
 end

@@ -32,7 +32,7 @@ function bodyTranslation_cb!(S)
     r, v = propagate!(orbp, S.t - S.tprev)
     S.u.body.r_eci = r
     S.u.body.v_eci = v
-
+    
     S.u.body.eci_to_ecef = r_eci_to_ecef(J2000(), ITRF(), S.u.orbit.epoch, S.p.environments.geomagnetism.eop_IAU1980)
     S.u.body.r_ecef = S.u.body.eci_to_ecef * S.u.body.r_eci
     S.u.body.v_ecef = S.u.body.eci_to_ecef * S.u.body.v_eci
