@@ -31,27 +31,28 @@ function output!(integrator) #formally known as do, but conflicts with julia do 
     return nothing
 end
 
-mutable struct Command
+#mutable struct Command
+struct Command
     f!
     t_start::Float64 #seconds
     duration::Float64 #seconds
-    occurred::Bool
-    occurring::Bool
-    Command(f,t_start,duration) = new(f,t_start,duration,false,false)
+    #occurred::Bool
+    #occurring::Bool
+    #Command(f,t_start,duration) = new(f,t_start,duration,false,false)
 end
 
 Base.length(::Command) = 1
 
-function commands!(S)
-    for c in S.p.fsw.commands            
-        if (S.t >= c.t_start) && !c.occurred                  
-            if c.occurring && (S.t >= (c.t_start + c.duration))                
-                c.occurred = true                
-                c.occurring = false
+function commands!(S)    
+    for i in eachindex(S.p.fsw.commands)
+        if (S.t >= S.p.fsw.commands[i].t_start) && !S.u.fsw.commands[i].occurred
+            if S.u.fsw.commands[i].occurring && (S.t >= (S.p.fsw.commands[i].t_start + S.p.fsw.commands[i].duration))                
+                S.u.fsw.commands[i].occurred = true                
+                S.u.fsw.commands[i].occurring = false
                 continue
             end
-            c.occurring = true
-            c.f!(S)
+            S.u.fsw.commands[i].occurring = true
+            S.p.fsw.commands.f!(S)
         end                
     end
 end

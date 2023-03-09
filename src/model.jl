@@ -58,6 +58,10 @@ function initModelValues(in, MC=false)
             merge!(d, Dict(k => initModelValues(in[k], MC)))
         elseif in[k] isa ModelValue
             merge!(d, Dict(k => v(in[k])))
+            
+        elseif in[k] isa Vector{Command} #reset commands when starting
+            nt = [ComponentArray(f! = c.f!, t_start = c.t_start, duration = c.duration, occurring = false, occurred = false) for c in in[k]]
+            merge!(d, Dict(k => nt))
         else
             #if it's something else, just put it back
             merge!(d, Dict(k => in[k]))
@@ -164,9 +168,13 @@ function defineModel(ic)
     x_output = ComponentArray(
         rw=x_output_rw,
     )
+
+    x_commands = [ComponentArray(occurring=false,occurred=false)]
+
     x_fsw = ComponentArray(
         ac=x_ac,
-        output=x_output
+        output=x_output,
+        commands = x_commands,
     )
 
     x_rw = ComponentArray(
@@ -246,6 +254,13 @@ end
 function initModel(x, p)    
     x0 = initModelValues(x,p.config.montecarlo)
     p0 = initModelValues(p,p.config.montecarlo)
+
+    #setup commands
+    for i in eachindex(p0.fsw.commands)
+        push!(x0.fsw.commands,ComponentArray(occurring = false,occurred = false))
+    end
+
+    #run once to setup all ic dependent values
     S = (u=x0, p=p0, t = 0, tprev = 0)
     model_cb!(S)
     return S
