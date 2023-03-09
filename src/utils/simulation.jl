@@ -7,6 +7,7 @@ end
 
 function simulate(x, p, tspan; nruns=1, dt=0.1)
     #Run nominal 
+    p2 = copy(p)
     xn,pn = initModel(x,p)
     nominal_prob = ODEProblem(model!, xn, tspan, pn, callback=model_cb)
 
